@@ -16,9 +16,9 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 final credentialsStoreProvider =
     Provider<CredentialsStore>((ref) => CredentialsStore());
 
-/// All books, most recently added first.
-final booksProvider = StreamProvider<List<Book>>(
-  (ref) => ref.watch(databaseProvider).watchBooks(),
+/// Library rows (book + saved position), most recently added first.
+final libraryEntriesProvider = StreamProvider<List<LibraryEntry>>(
+  (ref) => ref.watch(databaseProvider).watchLibraryEntries(),
 );
 
 /// Books with saved progress, most recently played first.

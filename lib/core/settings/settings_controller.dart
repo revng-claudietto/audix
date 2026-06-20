@@ -1,0 +1,60 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../audio/audio_providers.dart';
+
+/// Persisted, user-configurable playback settings.
+class AppSettings {
+  const AppSettings({this.skipSeconds = 30, this.smartResume = true});
+
+  /// Skip-back/forward amount for the ±buttons.
+  final int skipSeconds;
+
+  /// Rewind a few seconds when resuming after a pause.
+  final bool smartResume;
+
+  static const skipKey = 'skip_seconds';
+  static const smartResumeKey = 'smart_resume';
+
+  factory AppSettings.fromPrefs(SharedPreferences prefs) => AppSettings(
+        skipSeconds: prefs.getInt(skipKey) ?? 30,
+        smartResume: prefs.getBool(smartResumeKey) ?? true,
+      );
+
+  AppSettings copyWith({int? skipSeconds, bool? smartResume}) => AppSettings(
+        skipSeconds: skipSeconds ?? this.skipSeconds,
+        smartResume: smartResume ?? this.smartResume,
+      );
+}
+
+/// The loaded SharedPreferences instance. Overridden in `main()`.
+final sharedPreferencesProvider = Provider<SharedPreferences>(
+  (ref) => throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in main()',
+  ),
+);
+
+final settingsProvider =
+    NotifierProvider<SettingsController, AppSettings>(SettingsController.new);
+
+class SettingsController extends Notifier<AppSettings> {
+  @override
+  AppSettings build() =>
+      AppSettings.fromPrefs(ref.watch(sharedPreferencesProvider));
+
+  Future<void> setSkipSeconds(int seconds) async {
+    await ref
+        .read(sharedPreferencesProvider)
+        .setInt(AppSettings.skipKey, seconds);
+    state = state.copyWith(skipSeconds: seconds);
+    ref.read(audioHandlerProvider).skipInterval = Duration(seconds: seconds);
+  }
+
+  Future<void> setSmartResume(bool value) async {
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(AppSettings.smartResumeKey, value);
+    state = state.copyWith(smartResume: value);
+    ref.read(audioHandlerProvider).smartResume = value;
+  }
+}

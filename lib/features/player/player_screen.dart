@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/audio/audio_providers.dart';
 import '../../core/database/database.dart';
+import '../../core/settings/settings_controller.dart';
 import '../../core/util/format.dart';
 
 const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
@@ -31,6 +32,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final playing = state?.playing ?? false;
     final speed = state?.speed ?? 1.0;
+    final skip = ref.watch(settingsProvider).skipSeconds;
     final duration = mediaItem?.duration ?? Duration.zero;
     final maxMs = duration.inMilliseconds.toDouble();
     final sliderMs =
@@ -115,6 +117,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               const SizedBox(height: 8),
               _Controls(
                 playing: playing,
+                skipSeconds: skip,
                 onPrevChapter: chapters.isEmpty ? null : controller.previousChapter,
                 onNextChapter: chapters.isEmpty ? null : controller.nextChapter,
                 onRewind: controller.skipBackward,
@@ -290,6 +293,7 @@ class _Cover extends StatelessWidget {
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.playing,
+    required this.skipSeconds,
     required this.onPrevChapter,
     required this.onNextChapter,
     required this.onRewind,
@@ -298,6 +302,7 @@ class _Controls extends StatelessWidget {
   });
 
   final bool playing;
+  final int skipSeconds;
   final VoidCallback? onPrevChapter;
   final VoidCallback? onNextChapter;
   final VoidCallback onRewind;
@@ -317,8 +322,8 @@ class _Controls extends StatelessWidget {
         ),
         IconButton(
           iconSize: 36,
-          icon: const Icon(Icons.replay_30),
-          tooltip: 'Back 30s',
+          icon: Icon(_rewindIcon(skipSeconds)),
+          tooltip: 'Back ${skipSeconds}s',
           onPressed: onRewind,
         ),
         FilledButton(
@@ -331,8 +336,8 @@ class _Controls extends StatelessWidget {
         ),
         IconButton(
           iconSize: 36,
-          icon: const Icon(Icons.forward_30),
-          tooltip: 'Forward 30s',
+          icon: Icon(_forwardIcon(skipSeconds)),
+          tooltip: 'Forward ${skipSeconds}s',
           onPressed: onForward,
         ),
         IconButton(
@@ -345,3 +350,17 @@ class _Controls extends StatelessWidget {
     );
   }
 }
+
+IconData _rewindIcon(int s) => switch (s) {
+      5 => Icons.replay_5,
+      10 => Icons.replay_10,
+      30 => Icons.replay_30,
+      _ => Icons.replay,
+    };
+
+IconData _forwardIcon(int s) => switch (s) {
+      5 => Icons.forward_5,
+      10 => Icons.forward_10,
+      30 => Icons.forward_30,
+      _ => Icons.forward,
+    };

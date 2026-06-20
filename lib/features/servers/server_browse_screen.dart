@@ -5,7 +5,7 @@ import '../../core/database/database.dart';
 import '../../core/remote/remote_providers.dart';
 import '../../core/remote/remote_source.dart';
 
-class ServerBrowseScreen extends ConsumerWidget {
+class ServerBrowseScreen extends ConsumerStatefulWidget {
   const ServerBrowseScreen({
     super.key,
     required this.server,
@@ -22,13 +22,30 @@ class ServerBrowseScreen extends ConsumerWidget {
   final String? title;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final url = path ?? server.baseUrl;
+  ConsumerState<ServerBrowseScreen> createState() => _ServerBrowseScreenState();
+}
+
+class _ServerBrowseScreenState extends ConsumerState<ServerBrowseScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String get _url => widget.path ?? widget.server.baseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final server = widget.server;
+    final url = _url;
     final listing = ref.watch(remoteListingProvider((server.id, url)));
     final downloads = ref.watch(downloadsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(title ?? server.name)),
+      appBar: AppBar(title: Text(widget.title ?? server.name)),
       body: listing.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ListingError(
@@ -42,55 +59,105 @@ class ServerBrowseScreen extends ConsumerWidget {
           final cue = _firstMatch(
               entries, (e) => !e.isDir && e.name.toLowerCase().endsWith('.cue'));
           final dirs = entries.where((e) => e.isDir).toList();
+          final query = _query.trim().toLowerCase();
+          final filtered = query.isEmpty
+              ? dirs
+              : dirs
+                  .where((d) => d.name.toLowerCase().contains(query))
+                  .toList();
 
-          return RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(remoteListingProvider((server.id, url))),
-            child: ListView(
-              children: [
-                if (m4b != null)
-                  _DownloadBanner(
-                    folderName: title ?? server.name,
-                    progress: downloads[url],
-                    onDownload: () => _download(context, ref, url, m4b, cue),
-                  ),
-                for (final dir in dirs)
-                  ListTile(
-                    leading: const Icon(Icons.folder),
-                    title: Text(dir.name),
-                    trailing: downloads.containsKey(dir.url.toString())
-                        ? _MiniProgress(value: downloads[dir.url.toString()]!)
-                        : const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ServerBrowseScreen(
-                          server: server,
-                          path: dir.url.toString(),
-                          title: dir.name,
-                        ),
+          return Column(
+            children: [
+              if (dirs.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _query = v),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      hintText: 'Filter ${dirs.length} folders…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.clear),
+                              tooltip: 'Clear',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(28),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-                if (entries.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: Text('This folder is empty')),
+                ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async =>
+                      ref.invalidate(remoteListingProvider((server.id, url))),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      if (m4b != null)
+                        _DownloadBanner(
+                          folderName: widget.title ?? server.name,
+                          progress: downloads[url],
+                          onDownload: () => _download(context, url, m4b, cue),
+                        ),
+                      for (final dir in filtered)
+                        ListTile(
+                          leading: const Icon(Icons.folder),
+                          title: Text(dir.name),
+                          trailing: downloads.containsKey(dir.url.toString())
+                              ? _MiniProgress(
+                                  value: downloads[dir.url.toString()]!)
+                              : const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ServerBrowseScreen(
+                                server: server,
+                                path: dir.url.toString(),
+                                title: dir.name,
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (entries.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Center(child: Text('This folder is empty')),
+                        ),
+                      if (dirs.isNotEmpty && filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(
+                            child: Text('No folders match "$_query"'),
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  Future<void> _download(BuildContext context, WidgetRef ref, String url,
-      RemoteEntry m4b, RemoteEntry? cue) async {
+  Future<void> _download(
+      BuildContext context, String url, RemoteEntry m4b, RemoteEntry? cue) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(downloadsProvider.notifier).downloadBookAt(
-            server: server,
-            folderName: title ?? server.name,
+            server: widget.server,
+            folderName: widget.title ?? widget.server.name,
             folderKey: url,
             m4b: m4b,
             cue: cue,

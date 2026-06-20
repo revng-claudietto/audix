@@ -2,30 +2,67 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/settings/settings_controller.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final books = ref.watch(booksProvider).value ?? const [];
+    final bookCount = ref.watch(libraryEntriesProvider).value?.length ?? 0;
     final servers = ref.watch(serversProvider).value ?? const [];
+    final settings = ref.watch(settingsProvider);
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const _Header('Playback'),
+          ListTile(
+            leading: const Icon(Icons.fast_forward),
+            title: const Text('Skip interval'),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  for (final s in const [10, 15, 30, 60])
+                    ChoiceChip(
+                      label: Text('${s}s'),
+                      selected: settings.skipSeconds == s,
+                      onSelected: (_) =>
+                          ref.read(settingsProvider.notifier).setSkipSeconds(s),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.replay),
+            title: const Text('Rewind on resume'),
+            subtitle: const Text('Skip back a few seconds when you resume'),
+            value: settings.smartResume,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setSmartResume(v),
+          ),
+          const Divider(),
           const _Header('Library'),
           ListTile(
             leading: const Icon(Icons.library_books),
             title: const Text('Books'),
-            trailing: Text('${books.length}'),
+            trailing: Text('$bookCount'),
           ),
           ListTile(
             leading: const Icon(Icons.dns),
             title: const Text('Servers'),
             trailing: Text('${servers.length}'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Fetch missing covers'),
+            subtitle: const Text('Extract cover art for books that have none'),
+            onTap: () => _fetchCovers(context, ref),
           ),
           const Divider(),
           const _Header('Security'),
@@ -47,7 +84,7 @@ class SettingsScreen extends ConsumerWidget {
           AboutListTile(
             icon: const Icon(Icons.info_outline),
             applicationName: 'Audix',
-            applicationVersion: '1.0.0',
+            applicationVersion: '1.1.0',
             applicationLegalese: 'Audiobook player with cue-based chapters.',
             aboutBoxChildren: const [
               SizedBox(height: 12),
@@ -58,6 +95,19 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _fetchCovers(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Fetching covers…')));
+    final added = await ref.read(bookFinalizerProvider).backfillCovers();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          added == 0 ? 'No new covers found' : 'Added $added cover(s)',
+        ),
       ),
     );
   }

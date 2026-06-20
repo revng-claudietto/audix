@@ -55,6 +55,13 @@ class AudiobookHandler extends BaseAudioHandler with SeekHandler {
   final BehaviorSubject<int> _chapterIndex = BehaviorSubject<int>.seeded(0);
   List<ChapterMark> _chapters = const [];
 
+  /// Skip-back/forward amount (configurable in Settings).
+  Duration skipInterval = const Duration(seconds: 30);
+
+  /// When true, resuming after a pause rewinds a few seconds for context.
+  bool smartResume = true;
+  DateTime? _pausedAt;
+
   // ------------------------------------------------------------- accessors
   bool get playing => _player.playing;
   Duration get position => _player.position;
@@ -139,10 +146,36 @@ class AudiobookHandler extends BaseAudioHandler with SeekHandler {
 
   // -------------------------------------------------------------- controls
   @override
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    if (smartResume && _pausedAt != null) {
+      final back = resumeRewindFor(DateTime.now().difference(_pausedAt!));
+      if (back > Duration.zero) {
+        final target = _player.position - back;
+        await _player.seek(target < Duration.zero ? Duration.zero : target);
+      }
+    }
+    _pausedAt = null;
+    await _player.play();
+  }
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    _pausedAt = DateTime.now();
+    await _player.pause();
+  }
+
+  @override
+  Future<void> fastForward() async {
+    final target = _player.position + skipInterval;
+    final dur = _player.duration ?? target;
+    await seek(target > dur ? dur : target);
+  }
+
+  @override
+  Future<void> rewind() async {
+    final target = _player.position - skipInterval;
+    await seek(target < Duration.zero ? Duration.zero : target);
+  }
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
@@ -210,4 +243,12 @@ class AudiobookHandler extends BaseAudioHandler with SeekHandler {
       queueIndex: event.currentIndex,
     ));
   }
+}
+
+/// Graduated rewind-on-resume based on how long playback was paused.
+Duration resumeRewindFor(Duration pausedFor) {
+  if (pausedFor < const Duration(seconds: 10)) return Duration.zero;
+  if (pausedFor < const Duration(minutes: 1)) return const Duration(seconds: 5);
+  if (pausedFor < const Duration(hours: 1)) return const Duration(seconds: 10);
+  return const Duration(seconds: 20);
 }

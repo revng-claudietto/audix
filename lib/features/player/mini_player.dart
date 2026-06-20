@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,6 +18,7 @@ class MiniPlayer extends ConsumerWidget {
     final playing = ref.watch(playbackStateProvider).value?.playing ?? false;
     final controller = ref.read(playerControllerProvider);
     final scheme = Theme.of(context).colorScheme;
+    final art = item.artUri;
 
     return Material(
       color: scheme.surfaceContainerHighest,
@@ -27,8 +30,23 @@ class MiniPlayer extends ConsumerWidget {
           height: 64,
           child: Row(
             children: [
-              const SizedBox(width: 12),
-              Icon(Icons.menu_book, color: scheme.primary),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: art != null && art.isScheme('file')
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.file(
+                          File.fromUri(art),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, _, _) =>
+                              Icon(Icons.menu_book, color: scheme.primary),
+                        ),
+                      )
+                    : Icon(Icons.menu_book, color: scheme.primary),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

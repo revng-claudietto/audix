@@ -123,6 +123,23 @@ class AppDatabase extends _$AppDatabase {
         .map((rows) => rows.map((r) => r.readTable(books)).toList());
   }
 
+  /// All books joined with their saved position (left join), newest first.
+  Stream<List<LibraryEntry>> watchLibraryEntries() {
+    final query = select(books).join(
+      [leftOuterJoin(playback, playback.bookId.equalsExp(books.id))],
+    )..orderBy([OrderingTerm.desc(books.addedAt)]);
+    return query.watch().map(
+          (rows) => rows.map((r) {
+            final progress = r.readTableOrNull(playback);
+            return LibraryEntry(
+              book: r.readTable(books),
+              positionMs: progress?.positionMs ?? 0,
+              updatedAt: progress?.updatedAt,
+            );
+          }).toList(),
+        );
+  }
+
   // --------------------------------------------------------------- Chapters
   Future<void> insertChapters(List<ChaptersCompanion> rows) =>
       batch((b) => b.insertAll(chapters, rows));
@@ -164,6 +181,7 @@ class AppDatabase extends _$AppDatabase {
     int id, {
     required String m4bPath,
     String? cuePath,
+    String? coverPath,
     String? author,
     required String title,
     required int durationMs,
@@ -171,9 +189,32 @@ class AppDatabase extends _$AppDatabase {
     return (update(books)..where((b) => b.id.equals(id))).write(BooksCompanion(
       m4bPath: Value(m4bPath),
       cuePath: Value(cuePath),
+      coverPath: Value(coverPath),
       author: Value(author),
       title: Value(title),
       durationMs: Value(durationMs),
     ));
   }
+
+  /// Books that have no cover image yet (for backfill).
+  Future<List<Book>> booksWithoutCover() =>
+      (select(books)..where((b) => b.coverPath.isNull())).get();
+
+  /// Sets only the cover path for a book.
+  Future<void> setBookCover(int id, String coverPath) =>
+      (update(books)..where((b) => b.id.equals(id)))
+          .write(BooksCompanion(coverPath: Value(coverPath)));
+}
+
+/// A library row: a book plus its saved playback position (if any).
+class LibraryEntry {
+  const LibraryEntry({
+    required this.book,
+    required this.positionMs,
+    this.updatedAt,
+  });
+
+  final Book book;
+  final int positionMs;
+  final DateTime? updatedAt;
 }

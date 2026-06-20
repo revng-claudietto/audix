@@ -12,7 +12,23 @@ import 'package:path_provider/path_provider.dart';
 class FilePaths {
   static const String _booksDir = 'audiobooks';
 
-  static Future<Directory> _docs() => getApplicationDocumentsDirectory();
+  /// Cached absolute path of the app documents directory (set by [init]).
+  static String? documentsPath;
+
+  /// Caches the documents-dir path so covers can be resolved synchronously in
+  /// list tiles. Call once before runApp.
+  static Future<void> init() async {
+    documentsPath ??= (await getApplicationDocumentsDirectory()).path;
+  }
+
+  /// Synchronous absolute path for a db-stored relative path (requires [init]);
+  /// null if not initialised yet.
+  static String? cachedAbsolute(String relativePath) =>
+      documentsPath == null ? null : p.join(documentsPath!, relativePath);
+
+  static Future<Directory> _docs() async => Directory(
+        documentsPath ??= (await getApplicationDocumentsDirectory()).path,
+      );
 
   /// Ensures `<docs>/audiobooks/<bookId>/` exists and returns it.
   static Future<Directory> ensureBookDir(int bookId) async {
