@@ -1814,6 +1814,16 @@ class $BookmarksTable extends Bookmarks
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<BookmarkKind, int> kind =
+      GeneratedColumn<int>(
+        'kind',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      ).withConverter<BookmarkKind>($BookmarksTable.$converterkind);
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -1833,6 +1843,7 @@ class $BookmarksTable extends Bookmarks
     positionMs,
     chapterIndex,
     note,
+    kind,
     createdAt,
   ];
   @override
@@ -1916,6 +1927,12 @@ class $BookmarksTable extends Bookmarks
         DriftSqlType.string,
         data['${effectivePrefix}note'],
       ),
+      kind: $BookmarksTable.$converterkind.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}kind'],
+        )!,
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -1927,6 +1944,9 @@ class $BookmarksTable extends Bookmarks
   $BookmarksTable createAlias(String alias) {
     return $BookmarksTable(attachedDatabase, alias);
   }
+
+  static JsonTypeConverter2<BookmarkKind, int, int> $converterkind =
+      const EnumIndexConverter<BookmarkKind>(BookmarkKind.values);
 }
 
 class Bookmark extends DataClass implements Insertable<Bookmark> {
@@ -1935,6 +1955,11 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
   final int positionMs;
   final int chapterIndex;
   final String? note;
+
+  /// Whether this was added manually or automatically on play/pause.
+  final BookmarkKind kind;
+
+  /// Wall-clock time the bookmark was introduced.
   final DateTime createdAt;
   const Bookmark({
     required this.id,
@@ -1942,6 +1967,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     required this.positionMs,
     required this.chapterIndex,
     this.note,
+    required this.kind,
     required this.createdAt,
   });
   @override
@@ -1954,6 +1980,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    {
+      map['kind'] = Variable<int>($BookmarksTable.$converterkind.toSql(kind));
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -1965,6 +1994,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       positionMs: Value(positionMs),
       chapterIndex: Value(chapterIndex),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      kind: Value(kind),
       createdAt: Value(createdAt),
     );
   }
@@ -1980,6 +2010,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       positionMs: serializer.fromJson<int>(json['positionMs']),
       chapterIndex: serializer.fromJson<int>(json['chapterIndex']),
       note: serializer.fromJson<String?>(json['note']),
+      kind: $BookmarksTable.$converterkind.fromJson(
+        serializer.fromJson<int>(json['kind']),
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1992,6 +2025,9 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
       'positionMs': serializer.toJson<int>(positionMs),
       'chapterIndex': serializer.toJson<int>(chapterIndex),
       'note': serializer.toJson<String?>(note),
+      'kind': serializer.toJson<int>(
+        $BookmarksTable.$converterkind.toJson(kind),
+      ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -2002,6 +2038,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     int? positionMs,
     int? chapterIndex,
     Value<String?> note = const Value.absent(),
+    BookmarkKind? kind,
     DateTime? createdAt,
   }) => Bookmark(
     id: id ?? this.id,
@@ -2009,6 +2046,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
     positionMs: positionMs ?? this.positionMs,
     chapterIndex: chapterIndex ?? this.chapterIndex,
     note: note.present ? note.value : this.note,
+    kind: kind ?? this.kind,
     createdAt: createdAt ?? this.createdAt,
   );
   Bookmark copyWithCompanion(BookmarksCompanion data) {
@@ -2022,6 +2060,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
           ? data.chapterIndex.value
           : this.chapterIndex,
       note: data.note.present ? data.note.value : this.note,
+      kind: data.kind.present ? data.kind.value : this.kind,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -2034,6 +2073,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
           ..write('positionMs: $positionMs, ')
           ..write('chapterIndex: $chapterIndex, ')
           ..write('note: $note, ')
+          ..write('kind: $kind, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -2041,7 +2081,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
 
   @override
   int get hashCode =>
-      Object.hash(id, bookId, positionMs, chapterIndex, note, createdAt);
+      Object.hash(id, bookId, positionMs, chapterIndex, note, kind, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2051,6 +2091,7 @@ class Bookmark extends DataClass implements Insertable<Bookmark> {
           other.positionMs == this.positionMs &&
           other.chapterIndex == this.chapterIndex &&
           other.note == this.note &&
+          other.kind == this.kind &&
           other.createdAt == this.createdAt);
 }
 
@@ -2060,6 +2101,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   final Value<int> positionMs;
   final Value<int> chapterIndex;
   final Value<String?> note;
+  final Value<BookmarkKind> kind;
   final Value<DateTime> createdAt;
   const BookmarksCompanion({
     this.id = const Value.absent(),
@@ -2067,6 +2109,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     this.positionMs = const Value.absent(),
     this.chapterIndex = const Value.absent(),
     this.note = const Value.absent(),
+    this.kind = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   BookmarksCompanion.insert({
@@ -2075,6 +2118,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     required int positionMs,
     this.chapterIndex = const Value.absent(),
     this.note = const Value.absent(),
+    this.kind = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : bookId = Value(bookId),
        positionMs = Value(positionMs);
@@ -2084,6 +2128,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     Expression<int>? positionMs,
     Expression<int>? chapterIndex,
     Expression<String>? note,
+    Expression<int>? kind,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -2092,6 +2137,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
       if (positionMs != null) 'position_ms': positionMs,
       if (chapterIndex != null) 'chapter_index': chapterIndex,
       if (note != null) 'note': note,
+      if (kind != null) 'kind': kind,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -2102,6 +2148,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     Value<int>? positionMs,
     Value<int>? chapterIndex,
     Value<String?>? note,
+    Value<BookmarkKind>? kind,
     Value<DateTime>? createdAt,
   }) {
     return BookmarksCompanion(
@@ -2110,6 +2157,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
       positionMs: positionMs ?? this.positionMs,
       chapterIndex: chapterIndex ?? this.chapterIndex,
       note: note ?? this.note,
+      kind: kind ?? this.kind,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -2132,6 +2180,11 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<int>(
+        $BookmarksTable.$converterkind.toSql(kind.value),
+      );
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -2146,6 +2199,7 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
           ..write('positionMs: $positionMs, ')
           ..write('chapterIndex: $chapterIndex, ')
           ..write('note: $note, ')
+          ..write('kind: $kind, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -3638,6 +3692,7 @@ typedef $$BookmarksTableCreateCompanionBuilder =
       required int positionMs,
       Value<int> chapterIndex,
       Value<String?> note,
+      Value<BookmarkKind> kind,
       Value<DateTime> createdAt,
     });
 typedef $$BookmarksTableUpdateCompanionBuilder =
@@ -3647,6 +3702,7 @@ typedef $$BookmarksTableUpdateCompanionBuilder =
       Value<int> positionMs,
       Value<int> chapterIndex,
       Value<String?> note,
+      Value<BookmarkKind> kind,
       Value<DateTime> createdAt,
     });
 
@@ -3700,6 +3756,12 @@ class $$BookmarksTableFilterComposer
     column: $table.note,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnWithTypeConverterFilters<BookmarkKind, BookmarkKind, int> get kind =>
+      $composableBuilder(
+        column: $table.kind,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
@@ -3759,6 +3821,11 @@ class $$BookmarksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -3812,6 +3879,9 @@ class $$BookmarksTableAnnotationComposer
 
   GeneratedColumn<String> get note =>
       $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<BookmarkKind, int> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -3873,6 +3943,7 @@ class $$BookmarksTableTableManager
                 Value<int> positionMs = const Value.absent(),
                 Value<int> chapterIndex = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<BookmarkKind> kind = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => BookmarksCompanion(
                 id: id,
@@ -3880,6 +3951,7 @@ class $$BookmarksTableTableManager
                 positionMs: positionMs,
                 chapterIndex: chapterIndex,
                 note: note,
+                kind: kind,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -3889,6 +3961,7 @@ class $$BookmarksTableTableManager
                 required int positionMs,
                 Value<int> chapterIndex = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<BookmarkKind> kind = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => BookmarksCompanion.insert(
                 id: id,
@@ -3896,6 +3969,7 @@ class $$BookmarksTableTableManager
                 positionMs: positionMs,
                 chapterIndex: chapterIndex,
                 note: note,
+                kind: kind,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

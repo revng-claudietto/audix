@@ -8,6 +8,7 @@ import '../../core/audio/audio_providers.dart';
 import '../../core/database/database.dart';
 import '../../core/providers.dart';
 import '../../core/storage/file_paths.dart';
+import '../bookmarks/book_bookmarks_screen.dart';
 import '../player/player_screen.dart';
 import 'book_cover.dart';
 
@@ -133,6 +134,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         entry: e,
                         onTap: () => _openBook(e.book),
                         onDelete: () => _deleteBook(e.book),
+                        onBookmarks: () => _openBookmarks(e.book),
                       ),
                     if (all.isEmpty)
                       const Padding(
@@ -155,6 +157,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const PlayerScreen()),
+    );
+  }
+
+  void _openBookmarks(Book book) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BookBookmarksScreen(book: book)),
     );
   }
 
@@ -292,11 +300,13 @@ class _BookTile extends StatelessWidget {
     required this.entry,
     required this.onTap,
     required this.onDelete,
+    required this.onBookmarks,
   });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
   final VoidCallback onDelete;
+  final VoidCallback onBookmarks;
 
   @override
   Widget build(BuildContext context) {
@@ -362,8 +372,10 @@ class _BookTile extends StatelessWidget {
             PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'delete') onDelete();
+                if (value == 'bookmarks') onBookmarks();
               },
               itemBuilder: (context) => const [
+                PopupMenuItem(value: 'bookmarks', child: Text('Bookmarks')),
                 PopupMenuItem(value: 'delete', child: Text('Delete')),
               ],
             ),

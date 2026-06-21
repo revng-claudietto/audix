@@ -6,6 +6,12 @@ part 'database.g.dart';
 /// How a server exposes its audiobook folders. Stored as the enum index.
 enum ServerType { autoindex, webdav, json }
 
+/// How a bookmark was created. Stored as the enum index.
+///
+/// [manual] bookmarks are added explicitly by the user; [autoStart] /
+/// [autoStop] are created automatically when playback starts / stops.
+enum BookmarkKind { manual, autoStart, autoStop }
+
 @DataClassName('Server')
 class Servers extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -66,21 +72,36 @@ class Bookmarks extends Table {
   IntColumn get positionMs => integer()();
   IntColumn get chapterIndex => integer().withDefault(const Constant(0))();
   TextColumn get note => text().nullable()();
+
+  /// Whether this was added manually or automatically on play/pause.
+  IntColumn get kind => intEnum<BookmarkKind>().withDefault(const Constant(0))();
+
+  /// Wall-clock time the bookmark was introduced.
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 @DriftDatabase(tables: [Servers, Books, Chapters, Playback, Bookmarks])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
-      : super(executor ?? driftDatabase(name: 'audix'));
+      : super(executor ??
+            driftDatabase(
+              name: 'audix',
+              // Required when running on the web: drift loads sqlite3 as wasm
+              // and runs in a worker, both served from the web root (see web/).
+              web: DriftWebOptions(
+                sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+                driftWorker: Uri.parse('drift_worker.js'),
+              ),
+            ));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(bookmarks);
+          if (from < 3) await m.addColumn(bookmarks, bookmarks.kind);
         },
         beforeOpen: (details) async {
           // Required so KeyAction.cascade foreign keys are enforced.
@@ -234,6 +255,14 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteBookmark(int id) =>
       (delete(bookmarks)..where((b) => b.id.equals(id))).go();
+
+  /// Removes all automatic (start/stop) bookmarks for a book, keeping manual ones.
+  Future<void> clearAutoBookmarks(int bookId) =>
+      (delete(bookmarks)
+            ..where((b) =>
+                b.bookId.equals(bookId) &
+                b.kind.equals(BookmarkKind.manual.index).not()))
+          .go();
 
   /// All bookmarks across books (newest first), each with its book.
   Stream<List<BookmarkEntry>> watchAllBookmarks() {

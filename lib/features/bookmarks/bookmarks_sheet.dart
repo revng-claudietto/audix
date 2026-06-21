@@ -21,6 +21,20 @@ bool bookmarkMatches(
   return haystack.contains(q);
 }
 
+/// Icon representing how a bookmark was created.
+IconData bookmarkKindIcon(BookmarkKind kind) => switch (kind) {
+      BookmarkKind.manual => Icons.bookmark,
+      BookmarkKind.autoStart => Icons.play_circle_outline,
+      BookmarkKind.autoStop => Icons.pause_circle_outline,
+    };
+
+/// Short label for a bookmark kind.
+String bookmarkKindLabel(BookmarkKind kind) => switch (kind) {
+      BookmarkKind.manual => 'Bookmark',
+      BookmarkKind.autoStart => 'Started',
+      BookmarkKind.autoStop => 'Stopped',
+    };
+
 /// A reusable rounded filter field for the bookmark views.
 class BookmarkSearchField extends StatelessWidget {
   const BookmarkSearchField({
@@ -83,6 +97,7 @@ class _BookmarksSheet extends ConsumerStatefulWidget {
 class _BookmarksSheetState extends ConsumerState<_BookmarksSheet> {
   final _controller = TextEditingController();
   String _query = '';
+  bool _manualOnly = false;
 
   @override
   void dispose() {
@@ -95,6 +110,7 @@ class _BookmarksSheetState extends ConsumerState<_BookmarksSheet> {
     final bookmarks =
         ref.watch(currentBookmarksProvider).value ?? const <Bookmark>[];
     final controller = ref.read(playerControllerProvider);
+    final bookId = ref.watch(currentBookIdProvider);
 
     if (bookmarks.isEmpty) {
       return const SafeArea(
@@ -105,9 +121,12 @@ class _BookmarksSheetState extends ConsumerState<_BookmarksSheet> {
       );
     }
 
+    final hasAuto = bookmarks.any((b) => b.kind != BookmarkKind.manual);
     final filtered = [
       for (final b in bookmarks)
-        if (bookmarkMatches(b.note, b.chapterIndex, _query)) b,
+        if ((!_manualOnly || b.kind == BookmarkKind.manual) &&
+            bookmarkMatches(b.note, b.chapterIndex, _query))
+          b,
     ];
 
     return SafeArea(
@@ -121,6 +140,28 @@ class _BookmarksSheetState extends ConsumerState<_BookmarksSheet> {
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
+          if (hasAuto)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+              child: Row(
+                children: [
+                  FilterChip(
+                    label: const Text('Manual only'),
+                    selected: _manualOnly,
+                    onSelected: (v) => setState(() => _manualOnly = v),
+                  ),
+                  const Spacer(),
+                  if (bookId != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.auto_delete_outlined, size: 18),
+                      label: const Text('Clear auto'),
+                      onPressed: () => ref
+                          .read(databaseProvider)
+                          .clearAutoBookmarks(bookId),
+                    ),
+                ],
+              ),
+            ),
           Flexible(
             child: filtered.isEmpty
                 ? const Padding(
@@ -132,44 +173,76 @@ class _BookmarksSheetState extends ConsumerState<_BookmarksSheet> {
                     itemCount: filtered.length,
                     itemBuilder: (context, i) {
                       final b = filtered[i];
-                      final chapterNo = b.chapterIndex + 1;
-                      final time =
-                          formatDuration(Duration(milliseconds: b.positionMs));
-                      return ListTile(
-                        leading: const Icon(Icons.bookmark),
-                        title: Text(
-                          b.note?.isNotEmpty == true
-                              ? b.note!
-                              : 'Chapter $chapterNo',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text('Chapter $chapterNo • $time'),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (v) {
-                            if (v == 'note') {
-                              showBookmarkNoteDialog(context, ref, b.id, b.note);
-                            } else if (v == 'delete') {
-                              ref.read(databaseProvider).deleteBookmark(b.id);
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(
-                                value: 'note', child: Text('Edit note')),
-                            PopupMenuItem(
-                                value: 'delete', child: Text('Delete')),
-                          ],
-                        ),
+                      return BookmarkTile(
+                        bookmark: b,
                         onTap: () {
-                          controller.seek(Duration(milliseconds: b.positionMs));
+                          controller
+                              .seek(Duration(milliseconds: b.positionMs));
                           Navigator.pop(context);
                         },
+                        onEditNote: () =>
+                            showBookmarkNoteDialog(context, ref, b.id, b.note),
+                        onDelete: () =>
+                            ref.read(databaseProvider).deleteBookmark(b.id),
                       );
                     },
                   ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A single bookmark row showing its kind, location and the time it was added.
+class BookmarkTile extends StatelessWidget {
+  const BookmarkTile({
+    super.key,
+    required this.bookmark,
+    required this.onTap,
+    required this.onEditNote,
+    required this.onDelete,
+    this.bookTitle,
+  });
+
+  final Bookmark bookmark;
+  final VoidCallback onTap;
+  final VoidCallback onEditNote;
+  final VoidCallback onDelete;
+
+  /// When set (global list), shown in the subtitle to identify the book.
+  final String? bookTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final b = bookmark;
+    final chapterNo = b.chapterIndex + 1;
+    final pos = formatDuration(Duration(milliseconds: b.positionMs));
+    final when = formatTimestamp(b.createdAt);
+    final hasNote = b.note?.isNotEmpty == true;
+    final title = hasNote ? b.note! : bookmarkKindLabel(b.kind);
+    final where = 'Chapter $chapterNo • $pos';
+    final subtitle = [
+      if (bookTitle != null) bookTitle,
+      where,
+      when,
+    ].join(' • ');
+
+    return ListTile(
+      leading: Icon(bookmarkKindIcon(b.kind)),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: PopupMenuButton<String>(
+        onSelected: (v) {
+          if (v == 'note') onEditNote();
+          if (v == 'delete') onDelete();
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'note', child: Text('Edit note')),
+          PopupMenuItem(value: 'delete', child: Text('Delete')),
+        ],
+      ),
+      onTap: onTap,
     );
   }
 }

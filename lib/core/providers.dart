@@ -36,6 +36,12 @@ final allBookmarksProvider = StreamProvider<List<BookmarkEntry>>(
   (ref) => ref.watch(databaseProvider).watchAllBookmarks(),
 );
 
+/// Bookmarks for a specific book, ordered by position.
+final bookmarksForProvider =
+    StreamProvider.family<List<Bookmark>, int>(
+  (ref, bookId) => ref.watch(databaseProvider).watchBookmarks(bookId),
+);
+
 final bookFinalizerProvider = Provider<BookFinalizer>(
   (ref) => BookFinalizer(ref.watch(databaseProvider)),
 );

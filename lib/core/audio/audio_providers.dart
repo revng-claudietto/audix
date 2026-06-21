@@ -88,6 +88,7 @@ class PlayerController {
   int _durationMs = 0;
   Timer? _saveTimer;
   StreamSubscription<bool>? _playingSub;
+  bool _lastPlaying = false;
 
   Timer? _sleepTimer;
   final BehaviorSubject<Duration?> _sleepRemaining =
@@ -138,10 +139,31 @@ class PlayerController {
       if (handler.playing) _saveNow();
     });
     _playingSub?.cancel();
-    // Persist immediately whenever playback pauses or stops.
+    _lastPlaying = handler.playing;
+    // On each play/pause transition: persist progress and drop an automatic
+    // bookmark recording the position and the time it happened.
     _playingSub = handler.playingStream.listen((playing) {
-      if (!playing) _saveNow();
+      if (playing == _lastPlaying) return;
+      _lastPlaying = playing;
+      if (playing) {
+        _addAutoBookmark(BookmarkKind.autoStart);
+      } else {
+        _saveNow();
+        _addAutoBookmark(BookmarkKind.autoStop);
+      }
     });
+  }
+
+  /// Records an automatic bookmark at the current position (on play/pause).
+  Future<void> _addAutoBookmark(BookmarkKind kind) async {
+    final id = _bookId;
+    if (id == null) return;
+    await db.addBookmark(BookmarksCompanion.insert(
+      bookId: id,
+      positionMs: handler.position.inMilliseconds,
+      chapterIndex: Value(handler.currentChapter),
+      kind: Value(kind),
+    ));
   }
 
   Future<void> _saveNow() async {
@@ -181,6 +203,7 @@ class PlayerController {
       bookId: id,
       positionMs: handler.position.inMilliseconds,
       chapterIndex: Value(handler.currentChapter),
+      kind: const Value(BookmarkKind.manual),
     ));
   }
 

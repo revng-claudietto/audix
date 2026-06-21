@@ -19,6 +19,7 @@ class BookmarksScreen extends ConsumerStatefulWidget {
 class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
   final _controller = TextEditingController();
   String _query = '';
+  bool _manualOnly = false;
 
   @override
   void dispose() {
@@ -50,8 +51,10 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
 
           final filtered = [
             for (final e in entries)
-              if (bookmarkMatches(e.bookmark.note, e.bookmark.chapterIndex,
-                  _query, bookTitle: e.book.title))
+              if ((!_manualOnly ||
+                      e.bookmark.kind == BookmarkKind.manual) &&
+                  bookmarkMatches(e.bookmark.note, e.bookmark.chapterIndex,
+                      _query, bookTitle: e.book.title))
                 e,
           ];
 
@@ -63,6 +66,17 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
                   controller: _controller,
                   onChanged: (v) => setState(() => _query = v),
                   hintText: 'Search ${entries.length} bookmarks…',
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                  child: FilterChip(
+                    label: const Text('Manual only'),
+                    selected: _manualOnly,
+                    onSelected: (v) => setState(() => _manualOnly = v),
+                  ),
                 ),
               ),
               Expanded(
@@ -79,17 +93,27 @@ class _BookmarksScreenState extends ConsumerState<BookmarksScreen> {
                           final entry = filtered[i];
                           final b = entry.bookmark;
                           final hasNote = b.note?.isNotEmpty == true;
-                          final time = formatDuration(
+                          final pos = formatDuration(
                               Duration(milliseconds: b.positionMs));
-                          final where = 'Chapter ${b.chapterIndex + 1} • $time';
+                          final when = formatTimestamp(b.createdAt);
+                          final where =
+                              'Chapter ${b.chapterIndex + 1} • $pos • $when';
 
                           return ListTile(
                             leading: BookCover(
                                 coverPath: entry.book.coverPath, size: 48),
-                            title: Text(
-                              hasNote ? b.note! : entry.book.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            title: Row(
+                              children: [
+                                Icon(bookmarkKindIcon(b.kind), size: 16),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    hasNote ? b.note! : entry.book.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                             subtitle: Text(
                               hasNote ? '${entry.book.title} • $where' : where,
