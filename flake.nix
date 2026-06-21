@@ -323,7 +323,9 @@
             install -m644 ${sqlite3Wasm} web/sqlite3.wasm
             flutter config --no-analytics >/dev/null 2>&1 || true
             flutter pub get --offline --enforce-lockfile
-            flutter build web --release --no-pub
+            # No service worker: `nix run` serves a fresh build each time, and a
+            # cached worker would otherwise keep serving a stale app.
+            flutter build web --release --no-pub --pwa-strategy=none
             runHook postBuild
           '';
           installPhase = ''
@@ -347,6 +349,8 @@
               def end_headers(self):
                   self.send_header("Cross-Origin-Opener-Policy", "same-origin")
                   self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+                  # Never cache, so each `nix run` serves the fresh build.
+                  self.send_header("Cache-Control", "no-store")
                   super().end_headers()
           with socketserver.TCPServer(("127.0.0.1", port), H) as s:
               print(f"Audix on http://127.0.0.1:{port}  (Ctrl-C to stop)", flush=True)
