@@ -83,7 +83,16 @@ class Bookmarks extends Table {
 @DriftDatabase(tables: [Servers, Books, Chapters, Playback, Bookmarks])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
-      : super(executor ?? driftDatabase(name: 'audix'));
+      : super(executor ??
+            driftDatabase(
+              name: 'audix',
+              // Required when running on the web: drift loads sqlite3 as wasm
+              // and runs in a worker, both served from the web root (see web/).
+              web: DriftWebOptions(
+                sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+                driftWorker: Uri.parse('drift_worker.js'),
+              ),
+            ));
 
   @override
   int get schemaVersion => 3;

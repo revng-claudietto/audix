@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -18,6 +19,9 @@ class FilePaths {
   /// Caches the documents-dir path so covers can be resolved synchronously in
   /// list tiles. Call once before runApp.
   static Future<void> init() async {
+    // path_provider has no web implementation; local audiobook files aren't
+    // used on web, so skip it there (the DB still works via drift's wasm).
+    if (kIsWeb) return;
     documentsPath ??= (await getApplicationDocumentsDirectory()).path;
   }
 
