@@ -39,10 +39,43 @@ jobs:
       - name: Build the arm64-v8a APK
         run: nix build .#default -L --print-build-logs
 
-      - name: Stage APK
+      # The Nix build signs with the throwaway debug key (a pure sandbox can't
+      # see secrets). Re-sign the finished APK here with the real release key:
+      # the keystore (ANDROID_KEYSTORE_BASE64) and its password
+      # (ANDROID_KEYSTORE_PASSWORD) both come from repo secrets; the alias is a
+      # fixed public constant. apksigner reads the password from the env (not
+      # argv) so it never lands in the process list. Falls back to the
+      # debug-signed APK when the secrets are absent (e.g. PRs from forks),
+      # keeping CI green.
+      - name: Sign & stage the APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
+          KS_ALIAS=audix   # fixed public constant; must match the keystore
           mkdir -p dist
           cp -L result/*.apk dist/
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret set — APK stays debug-signed."
+            ls -l dist
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # java for apksigner; zipalign + apksigner from the flake's Android SDK.
+          export PATH="$(nix build nixpkgs#jdk17 --no-link --print-out-paths)/bin:$PATH"
+          BT="$(nix build .#android-sdk --no-link --print-out-paths)/libexec/android-sdk/build-tools/36.0.0"
+          for apk in dist/*.apk; do
+            "$BT/zipalign" -p -f 4 "$apk" "$apk.aligned"
+            mv "$apk.aligned" "$apk"
+            "$BT/apksigner" sign \
+              --ks "$RUNNER_TEMP/release.jks" \
+              --ks-key-alias "$KS_ALIAS" \
+              --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+              --key-pass env:ANDROID_KEYSTORE_PASSWORD \
+              "$apk"
+            "$BT/apksigner" verify --verbose --print-certs "$apk"
+          done
+          rm -f "$RUNNER_TEMP/release.jks"
           ls -l dist
 
       - uses: actions/upload-artifact@v4
