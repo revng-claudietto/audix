@@ -51,3 +51,6 @@ app.*.map.json
 # drift web assets are fetched at build time, not vendored
 /web/drift_worker.js
 /web/sqlite3.wasm
+
+# Nix codegen build symlink
+/result-codegen

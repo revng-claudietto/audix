@@ -338,6 +338,38 @@
           meta.description = "Audix audiobook player — Flutter web build";
         };
 
+        # ---- Codegen (drift/build_runner) -----------------------------------
+        # Runs build_runner in the same offline env that pub get works in, and
+        # emits the generated `*.g.dart` files. Bare `flutter pub get` outside
+        # the sandbox can't resolve the SDK's sky_engine, so regenerate with:
+        #   nix build .#codegen -o result-codegen && \
+        #   cp result-codegen/lib/core/database/database.g.dart lib/core/database/
+        codegen = pkgs.stdenv.mkDerivation {
+          pname = "audix-codegen";
+          inherit version src;
+          nativeBuildInputs = [ flutter ];
+          dontConfigure = true;
+          buildPhase = ''
+            runHook preBuild
+            ${mkScratch}
+            export HOME="$SCRATCH/home"; mkdir -p "$HOME"
+            export PUB_CACHE="$SCRATCH/pub-cache"
+            cp -r ${pubCache} "$PUB_CACHE"; chmod -R u+w "$PUB_CACHE"
+            flutter config --no-analytics >/dev/null 2>&1 || true
+            flutter pub get --offline --enforce-lockfile
+            flutter pub run build_runner build --delete-conflicting-outputs
+            runHook postBuild
+          '';
+          installPhase = ''
+            runHook preInstall
+            mkdir -p "$out"
+            find lib -name '*.g.dart' -exec cp --parents {} "$out/" \;
+            runHook postInstall
+          '';
+          dontFixup = true;
+          meta.description = "Generated drift/build_runner sources";
+        };
+
         # `nix run` serves the web build locally (cross-origin isolated so
         # drift's wasm worker can use SharedArrayBuffer).
         serveScript = pkgs.writeText "serve.py" ''
@@ -367,6 +399,7 @@
           default = apk;
           audix = apk;
           web = web;
+          codegen = codegen;
           pub-cache = pubCache;
           gradle-repo = gradleRepo;
           android-sdk = androidSdk;
