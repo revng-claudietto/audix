@@ -4,6 +4,7 @@ import 'database/database.dart';
 import 'import/local_import.dart';
 import 'library/book_finalizer.dart';
 import 'storage/credentials_store.dart';
+import 'subtitle/subtitle_service.dart';
 
 /// Single app-wide drift database instance.
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -46,9 +47,15 @@ final bookFinalizerProvider = Provider<BookFinalizer>(
   (ref) => BookFinalizer(ref.watch(databaseProvider)),
 );
 
+/// Parses subtitle/transcript files and stores their cues.
+final subtitleServiceProvider = Provider<SubtitleService>(
+  (ref) => SubtitleService(ref.watch(databaseProvider)),
+);
+
 final localImporterProvider = Provider<LocalImporter>(
   (ref) => LocalImporter(
     ref.watch(databaseProvider),
     ref.watch(bookFinalizerProvider),
+    ref.watch(subtitleServiceProvider),
   ),
 );

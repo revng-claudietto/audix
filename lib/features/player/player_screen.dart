@@ -8,6 +8,7 @@ import '../../core/database/database.dart';
 import '../../core/settings/settings_controller.dart';
 import '../../core/util/format.dart';
 import '../bookmarks/bookmarks_sheet.dart';
+import 'transcript_screen.dart';
 
 const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 
@@ -43,6 +44,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final position = ref.watch(positionProvider).value ?? Duration.zero;
     final chapterIndex = ref.watch(chapterIndexProvider).value ?? 0;
     final chapters = ref.watch(currentChaptersProvider).value ?? const <Chapter>[];
+    final hasTranscript = ref.watch(currentHasSubtitlesProvider).value ?? false;
     final sleepRemaining = ref.watch(sleepRemainingProvider).value;
 
     final playing = state?.playing ?? false;
@@ -61,6 +63,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       appBar: AppBar(
         title: const Text('Now Playing'),
         actions: [
+          if (hasTranscript)
+            IconButton(
+              tooltip: 'Transcript',
+              icon: const Icon(Icons.subtitles_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TranscriptScreen()),
+              ),
+            ),
           IconButton(
             tooltip: 'Bookmarks',
             icon: const Icon(Icons.bookmarks_outlined),

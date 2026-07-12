@@ -65,6 +65,22 @@ final currentBookmarksProvider = StreamProvider<List<Bookmark>>((ref) {
   return ref.watch(databaseProvider).watchBookmarks(id);
 });
 
+/// Transcript lines of the currently loaded book, ordered by time. Empty when
+/// the book has no subtitles attached.
+final currentSubtitlesProvider = StreamProvider<List<SubtitleCueRow>>((ref) {
+  final id = ref.watch(currentBookIdProvider);
+  if (id == null) return Stream.value(const []);
+  return ref.watch(databaseProvider).watchSubtitles(id);
+});
+
+/// Whether the current book has a transcript. Cheaper than [currentSubtitlesProvider]
+/// (a count, not the whole transcript) for the player's transcript button.
+final currentHasSubtitlesProvider = StreamProvider<bool>((ref) {
+  final id = ref.watch(currentBookIdProvider);
+  if (id == null) return Stream.value(false);
+  return ref.watch(databaseProvider).watchSubtitleCount(id).map((n) => n > 0);
+});
+
 /// Remaining time on the sleep timer, or null when it is off.
 final sleepRemainingProvider = StreamProvider<Duration?>(
   (ref) => ref.watch(playerControllerProvider).sleepRemainingStream,

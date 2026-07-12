@@ -137,6 +137,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         onTap: () => _openBook(e.book),
                         onDelete: () => _deleteBook(e.book),
                         onBookmarks: () => _openBookmarks(e.book),
+                        onSubtitles: () => _addSubtitles(e.book),
                       ),
                     if (all.isEmpty)
                       const Padding(
@@ -197,7 +198,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['m4b', 'cue'],
+      allowedExtensions: ['m4b', 'cue', 'vtt', 'srt'],
       allowMultiple: true,
       withData: kIsWeb, // web has no paths; read the bytes instead
     );
@@ -210,17 +211,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     String? m4b;
     String? cue;
+    String? subtitle;
     for (final file in result.files) {
       final path = file.path;
       if (path == null) continue;
       final lower = path.toLowerCase();
       if (lower.endsWith('.m4b')) m4b = path;
       if (lower.endsWith('.cue')) cue = path;
+      if (lower.endsWith('.vtt') || lower.endsWith('.srt')) subtitle = path;
     }
     if (m4b == null) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text('Select an .m4b file (optionally with its .cue).'),
+          content: Text('Select an .m4b file (optionally with a .cue/.vtt).'),
         ),
       );
       return;
@@ -233,9 +236,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     ));
     try {
-      await ref
-          .read(localImporterProvider)
-          .importBook(m4bSourcePath: m4b, cueSourcePath: cue);
+      await ref.read(localImporterProvider).importBook(
+            m4bSourcePath: m4b,
+            cueSourcePath: cue,
+            subtitleSourcePath: subtitle,
+          );
       if (mounted) Navigator.of(context).pop();
       messenger.showSnackBar(const SnackBar(content: Text('Imported')));
     } catch (e) {
@@ -250,6 +255,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     Uint8List? m4bBytes;
     String? m4bName;
     Uint8List? cueBytes;
+    Uint8List? subtitleBytes;
     for (final file in result.files) {
       final lower = file.name.toLowerCase();
       if (lower.endsWith('.m4b')) {
@@ -257,11 +263,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         m4bName = file.name;
       } else if (lower.endsWith('.cue')) {
         cueBytes = file.bytes;
+      } else if (lower.endsWith('.vtt') || lower.endsWith('.srt')) {
+        subtitleBytes = file.bytes;
       }
     }
     if (m4bBytes == null || m4bName == null) {
       messenger.showSnackBar(const SnackBar(
-        content: Text('Select an .m4b file (optionally with its .cue).'),
+        content: Text('Select an .m4b file (optionally with a .cue/.vtt).'),
       ));
       return;
     }
@@ -277,12 +285,44 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             name: m4bName,
             m4bBytes: m4bBytes,
             cueBytes: cueBytes,
+            subtitleBytes: subtitleBytes,
           );
       if (mounted) Navigator.of(context).pop();
       messenger.showSnackBar(const SnackBar(content: Text('Imported')));
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
       messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+    }
+  }
+
+  /// Attaches (or replaces) a transcript on a book already in the library.
+  /// The `.vtt`/`.srt` is small, so its bytes are read directly on every
+  /// platform (no path handling needed).
+  Future<void> _addSubtitles(Book book) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['vtt', 'srt'],
+      withData: true,
+    );
+    if (result == null) return;
+    final bytes = result.files.single.bytes;
+    if (bytes == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not read the subtitle file.')),
+      );
+      return;
+    }
+    try {
+      final count =
+          await ref.read(subtitleServiceProvider).attach(book.id, bytes);
+      messenger.showSnackBar(SnackBar(
+        content: Text(count > 0
+            ? 'Added transcript ($count lines)'
+            : 'No subtitles found in that file'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 }
@@ -353,12 +393,14 @@ class _BookTile extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onBookmarks,
+    required this.onSubtitles,
   });
 
   final LibraryEntry entry;
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final VoidCallback onBookmarks;
+  final VoidCallback onSubtitles;
 
   @override
   Widget build(BuildContext context) {
@@ -425,9 +467,11 @@ class _BookTile extends StatelessWidget {
               onSelected: (value) {
                 if (value == 'delete') onDelete();
                 if (value == 'bookmarks') onBookmarks();
+                if (value == 'subtitles') onSubtitles();
               },
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'bookmarks', child: Text('Bookmarks')),
+                PopupMenuItem(value: 'subtitles', child: Text('Add subtitles')),
                 PopupMenuItem(value: 'delete', child: Text('Delete')),
               ],
             ),

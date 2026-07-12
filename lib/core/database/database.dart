@@ -93,7 +93,22 @@ class BookFiles extends Table {
   Set<Column> get primaryKey => {bookId};
 }
 
-@DriftDatabase(tables: [Servers, Books, Chapters, Playback, Bookmarks, BookFiles])
+/// A book's transcript: one timed line per row, parsed from a `.vtt`/`.srt`.
+/// Named `SubtitleCueRow` to avoid clashing with the parser's `SubtitleCue`.
+@DataClassName('SubtitleCueRow')
+class SubtitleCues extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get bookId =>
+      integer().references(Books, #id, onDelete: KeyAction.cascade)();
+  IntColumn get cueIndex => integer()();
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+  // Named `content` rather than `text` so it doesn't shadow Table.text().
+  TextColumn get content => text()();
+}
+
+@DriftDatabase(
+    tables: [Servers, Books, Chapters, Playback, Bookmarks, BookFiles, SubtitleCues])
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor])
       : super(executor ??
@@ -108,7 +123,7 @@ class AppDatabase extends _$AppDatabase {
             ));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -116,6 +131,7 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) await m.createTable(bookmarks);
           if (from < 3) await m.addColumn(bookmarks, bookmarks.kind);
           if (from < 4) await m.createTable(bookFiles);
+          if (from < 5) await m.createTable(subtitleCues);
         },
         beforeOpen: (details) async {
           // Required so KeyAction.cascade foreign keys are enforced.
@@ -209,6 +225,33 @@ class AppDatabase extends _$AppDatabase {
         ..where((c) => c.bookId.equals(bookId))
         ..orderBy([(c) => OrderingTerm(expression: c.chapterIndex)]))
       .get();
+
+  // -------------------------------------------------------------- Subtitles
+  /// A book's transcript lines, in order, updating live as they change.
+  Stream<List<SubtitleCueRow>> watchSubtitles(int bookId) =>
+      (select(subtitleCues)
+            ..where((s) => s.bookId.equals(bookId))
+            ..orderBy([(s) => OrderingTerm(expression: s.cueIndex)]))
+          .watch();
+
+  /// Live count of a book's transcript lines. Cheap enough to watch from the
+  /// player just to decide whether to offer the transcript view, without
+  /// loading a (potentially book-length) transcript into memory.
+  Stream<int> watchSubtitleCount(int bookId) {
+    final count = subtitleCues.id.count();
+    return (selectOnly(subtitleCues)
+          ..addColumns([count])
+          ..where(subtitleCues.bookId.equals(bookId)))
+        .watchSingle()
+        .map((row) => row.read(count) ?? 0);
+  }
+
+  /// Replaces a book's transcript with [rows] (removing any existing lines).
+  Future<void> replaceSubtitles(
+      int bookId, List<SubtitleCuesCompanion> rows) async {
+    await (delete(subtitleCues)..where((s) => s.bookId.equals(bookId))).go();
+    if (rows.isNotEmpty) await batch((b) => b.insertAll(subtitleCues, rows));
+  }
 
   // --------------------------------------------------------------- Playback
   Future<PlaybackProgress?> playbackFor(int bookId) =>

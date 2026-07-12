@@ -2457,6 +2457,405 @@ class BookFilesCompanion extends UpdateCompanion<BookFile> {
   }
 }
 
+class $SubtitleCuesTable extends SubtitleCues
+    with TableInfo<$SubtitleCuesTable, SubtitleCueRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SubtitleCuesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<int> bookId = GeneratedColumn<int>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES books (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _cueIndexMeta = const VerificationMeta(
+    'cueIndex',
+  );
+  @override
+  late final GeneratedColumn<int> cueIndex = GeneratedColumn<int>(
+    'cue_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    cueIndex,
+    startMs,
+    endMs,
+    content,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'subtitle_cues';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SubtitleCueRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('cue_index')) {
+      context.handle(
+        _cueIndexMeta,
+        cueIndex.isAcceptableOrUnknown(data['cue_index']!, _cueIndexMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cueIndexMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SubtitleCueRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SubtitleCueRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}book_id'],
+      )!,
+      cueIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cue_index'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+    );
+  }
+
+  @override
+  $SubtitleCuesTable createAlias(String alias) {
+    return $SubtitleCuesTable(attachedDatabase, alias);
+  }
+}
+
+class SubtitleCueRow extends DataClass implements Insertable<SubtitleCueRow> {
+  final int id;
+  final int bookId;
+  final int cueIndex;
+  final int startMs;
+  final int endMs;
+  final String content;
+  const SubtitleCueRow({
+    required this.id,
+    required this.bookId,
+    required this.cueIndex,
+    required this.startMs,
+    required this.endMs,
+    required this.content,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['book_id'] = Variable<int>(bookId);
+    map['cue_index'] = Variable<int>(cueIndex);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['content'] = Variable<String>(content);
+    return map;
+  }
+
+  SubtitleCuesCompanion toCompanion(bool nullToAbsent) {
+    return SubtitleCuesCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      cueIndex: Value(cueIndex),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      content: Value(content),
+    );
+  }
+
+  factory SubtitleCueRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SubtitleCueRow(
+      id: serializer.fromJson<int>(json['id']),
+      bookId: serializer.fromJson<int>(json['bookId']),
+      cueIndex: serializer.fromJson<int>(json['cueIndex']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      content: serializer.fromJson<String>(json['content']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'bookId': serializer.toJson<int>(bookId),
+      'cueIndex': serializer.toJson<int>(cueIndex),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'content': serializer.toJson<String>(content),
+    };
+  }
+
+  SubtitleCueRow copyWith({
+    int? id,
+    int? bookId,
+    int? cueIndex,
+    int? startMs,
+    int? endMs,
+    String? content,
+  }) => SubtitleCueRow(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    cueIndex: cueIndex ?? this.cueIndex,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    content: content ?? this.content,
+  );
+  SubtitleCueRow copyWithCompanion(SubtitleCuesCompanion data) {
+    return SubtitleCueRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      cueIndex: data.cueIndex.present ? data.cueIndex.value : this.cueIndex,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      content: data.content.present ? data.content.value : this.content,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubtitleCueRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('cueIndex: $cueIndex, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, bookId, cueIndex, startMs, endMs, content);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SubtitleCueRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.cueIndex == this.cueIndex &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.content == this.content);
+}
+
+class SubtitleCuesCompanion extends UpdateCompanion<SubtitleCueRow> {
+  final Value<int> id;
+  final Value<int> bookId;
+  final Value<int> cueIndex;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String> content;
+  const SubtitleCuesCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.cueIndex = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.content = const Value.absent(),
+  });
+  SubtitleCuesCompanion.insert({
+    this.id = const Value.absent(),
+    required int bookId,
+    required int cueIndex,
+    required int startMs,
+    required int endMs,
+    required String content,
+  }) : bookId = Value(bookId),
+       cueIndex = Value(cueIndex),
+       startMs = Value(startMs),
+       endMs = Value(endMs),
+       content = Value(content);
+  static Insertable<SubtitleCueRow> custom({
+    Expression<int>? id,
+    Expression<int>? bookId,
+    Expression<int>? cueIndex,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? content,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (cueIndex != null) 'cue_index': cueIndex,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (content != null) 'content': content,
+    });
+  }
+
+  SubtitleCuesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? bookId,
+    Value<int>? cueIndex,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String>? content,
+  }) {
+    return SubtitleCuesCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      cueIndex: cueIndex ?? this.cueIndex,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      content: content ?? this.content,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<int>(bookId.value);
+    }
+    if (cueIndex.present) {
+      map['cue_index'] = Variable<int>(cueIndex.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SubtitleCuesCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('cueIndex: $cueIndex, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2466,6 +2865,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PlaybackTable playback = $PlaybackTable(this);
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
   late final $BookFilesTable bookFiles = $BookFilesTable(this);
+  late final $SubtitleCuesTable subtitleCues = $SubtitleCuesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2477,6 +2877,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     playback,
     bookmarks,
     bookFiles,
+    subtitleCues,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2507,6 +2908,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('book_files', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'books',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('subtitle_cues', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -2822,6 +3230,24 @@ final class $$BooksTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SubtitleCuesTable, List<SubtitleCueRow>>
+  _subtitleCuesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.subtitleCues,
+    aliasName: 'books__id__subtitle_cues__book_id',
+  );
+
+  $$SubtitleCuesTableProcessedTableManager get subtitleCuesRefs {
+    final manager = $$SubtitleCuesTableTableManager(
+      $_db,
+      $_db.subtitleCues,
+    ).filter((f) => f.bookId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_subtitleCuesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
@@ -2973,6 +3399,31 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
           }) => $$BookFilesTableFilterComposer(
             $db: $db,
             $table: $db.bookFiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> subtitleCuesRefs(
+    Expression<bool> Function($$SubtitleCuesTableFilterComposer f) f,
+  ) {
+    final $$SubtitleCuesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subtitleCues,
+      getReferencedColumn: (t) => t.bookId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubtitleCuesTableFilterComposer(
+            $db: $db,
+            $table: $db.subtitleCues,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3183,6 +3634,31 @@ class $$BooksTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> subtitleCuesRefs<T extends Object>(
+    Expression<T> Function($$SubtitleCuesTableAnnotationComposer a) f,
+  ) {
+    final $$SubtitleCuesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.subtitleCues,
+      getReferencedColumn: (t) => t.bookId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SubtitleCuesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.subtitleCues,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$BooksTableTableManager
@@ -3203,6 +3679,7 @@ class $$BooksTableTableManager
             bool playbackRefs,
             bool bookmarksRefs,
             bool bookFilesRefs,
+            bool subtitleCuesRefs,
           })
         > {
   $$BooksTableTableManager(_$AppDatabase db, $BooksTable table)
@@ -3276,6 +3753,7 @@ class $$BooksTableTableManager
                 playbackRefs = false,
                 bookmarksRefs = false,
                 bookFilesRefs = false,
+                subtitleCuesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -3284,6 +3762,7 @@ class $$BooksTableTableManager
                     if (playbackRefs) db.playback,
                     if (bookmarksRefs) db.bookmarks,
                     if (bookFilesRefs) db.bookFiles,
+                    if (subtitleCuesRefs) db.subtitleCues,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -3360,6 +3839,27 @@ class $$BooksTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (subtitleCuesRefs)
+                        await $_getPrefetchedData<
+                          Book,
+                          $BooksTable,
+                          SubtitleCueRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$BooksTableReferences
+                              ._subtitleCuesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$BooksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).subtitleCuesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.bookId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3385,6 +3885,7 @@ typedef $$BooksTableProcessedTableManager =
         bool playbackRefs,
         bool bookmarksRefs,
         bool bookFilesRefs,
+        bool subtitleCuesRefs,
       })
     >;
 typedef $$ChaptersTableCreateCompanionBuilder =
@@ -4654,6 +5155,336 @@ typedef $$BookFilesTableProcessedTableManager =
       BookFile,
       PrefetchHooks Function({bool bookId})
     >;
+typedef $$SubtitleCuesTableCreateCompanionBuilder =
+    SubtitleCuesCompanion Function({
+      Value<int> id,
+      required int bookId,
+      required int cueIndex,
+      required int startMs,
+      required int endMs,
+      required String content,
+    });
+typedef $$SubtitleCuesTableUpdateCompanionBuilder =
+    SubtitleCuesCompanion Function({
+      Value<int> id,
+      Value<int> bookId,
+      Value<int> cueIndex,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<String> content,
+    });
+
+final class $$SubtitleCuesTableReferences
+    extends BaseReferences<_$AppDatabase, $SubtitleCuesTable, SubtitleCueRow> {
+  $$SubtitleCuesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $BooksTable _bookIdTable(_$AppDatabase db) =>
+      db.books.createAlias('subtitle_cues__book_id__books__id');
+
+  $$BooksTableProcessedTableManager get bookId {
+    final $_column = $_itemColumn<int>('book_id')!;
+
+    final manager = $$BooksTableTableManager(
+      $_db,
+      $_db.books,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bookIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SubtitleCuesTableFilterComposer
+    extends Composer<_$AppDatabase, $SubtitleCuesTable> {
+  $$SubtitleCuesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cueIndex => $composableBuilder(
+    column: $table.cueIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BooksTableFilterComposer get bookId {
+    final $$BooksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bookId,
+      referencedTable: $db.books,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BooksTableFilterComposer(
+            $db: $db,
+            $table: $db.books,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubtitleCuesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SubtitleCuesTable> {
+  $$SubtitleCuesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cueIndex => $composableBuilder(
+    column: $table.cueIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BooksTableOrderingComposer get bookId {
+    final $$BooksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bookId,
+      referencedTable: $db.books,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BooksTableOrderingComposer(
+            $db: $db,
+            $table: $db.books,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubtitleCuesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SubtitleCuesTable> {
+  $$SubtitleCuesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get cueIndex =>
+      $composableBuilder(column: $table.cueIndex, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  $$BooksTableAnnotationComposer get bookId {
+    final $$BooksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bookId,
+      referencedTable: $db.books,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BooksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.books,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SubtitleCuesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SubtitleCuesTable,
+          SubtitleCueRow,
+          $$SubtitleCuesTableFilterComposer,
+          $$SubtitleCuesTableOrderingComposer,
+          $$SubtitleCuesTableAnnotationComposer,
+          $$SubtitleCuesTableCreateCompanionBuilder,
+          $$SubtitleCuesTableUpdateCompanionBuilder,
+          (SubtitleCueRow, $$SubtitleCuesTableReferences),
+          SubtitleCueRow,
+          PrefetchHooks Function({bool bookId})
+        > {
+  $$SubtitleCuesTableTableManager(_$AppDatabase db, $SubtitleCuesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SubtitleCuesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SubtitleCuesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SubtitleCuesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> bookId = const Value.absent(),
+                Value<int> cueIndex = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String> content = const Value.absent(),
+              }) => SubtitleCuesCompanion(
+                id: id,
+                bookId: bookId,
+                cueIndex: cueIndex,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int bookId,
+                required int cueIndex,
+                required int startMs,
+                required int endMs,
+                required String content,
+              }) => SubtitleCuesCompanion.insert(
+                id: id,
+                bookId: bookId,
+                cueIndex: cueIndex,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SubtitleCuesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({bookId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (bookId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.bookId,
+                                referencedTable: $$SubtitleCuesTableReferences
+                                    ._bookIdTable(db),
+                                referencedColumn: $$SubtitleCuesTableReferences
+                                    ._bookIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SubtitleCuesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SubtitleCuesTable,
+      SubtitleCueRow,
+      $$SubtitleCuesTableFilterComposer,
+      $$SubtitleCuesTableOrderingComposer,
+      $$SubtitleCuesTableAnnotationComposer,
+      $$SubtitleCuesTableCreateCompanionBuilder,
+      $$SubtitleCuesTableUpdateCompanionBuilder,
+      (SubtitleCueRow, $$SubtitleCuesTableReferences),
+      SubtitleCueRow,
+      PrefetchHooks Function({bool bookId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4670,4 +5501,6 @@ class $AppDatabaseManager {
       $$BookmarksTableTableManager(_db, _db.bookmarks);
   $$BookFilesTableTableManager get bookFiles =>
       $$BookFilesTableTableManager(_db, _db.bookFiles);
+  $$SubtitleCuesTableTableManager get subtitleCues =>
+      $$SubtitleCuesTableTableManager(_db, _db.subtitleCues);
 }

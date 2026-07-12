@@ -90,7 +90,7 @@ jobs:
             curl -fsS -o /dev/null "http://127.0.0.1:8087/index.html" && break
             sleep 1
           done
-          python3 tool/web/smoke_test.py "http://127.0.0.1:8087/" "$CHROME" shots dist shots/sample.m4b
+          python3 tool/web/smoke_test.py "http://127.0.0.1:8087/" "$CHROME" shots dist shots/sample.m4b tool/web/sample.vtt
           ls -l dist
 
       - uses: actions/upload-artifact@v4
