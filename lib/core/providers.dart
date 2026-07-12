@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'database/database.dart';
 import 'import/local_import.dart';
 import 'library/book_finalizer.dart';
+import 'library/library_scanner.dart';
 import 'storage/credentials_store.dart';
 import 'subtitle/subtitle_service.dart';
 
@@ -45,6 +46,15 @@ final bookmarksForProvider =
 
 final bookFinalizerProvider = Provider<BookFinalizer>(
   (ref) => BookFinalizer(ref.watch(databaseProvider)),
+);
+
+/// Re-indexes the audiobooks folder into the database.
+final libraryScannerProvider = Provider<LibraryScanner>(
+  (ref) => LibraryScanner(
+    ref.watch(databaseProvider),
+    ref.watch(bookFinalizerProvider),
+    ref.watch(subtitleServiceProvider),
+  ),
 );
 
 /// Parses subtitle/transcript files and stores their cues.

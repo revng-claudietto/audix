@@ -1,15 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/audio/audio_providers.dart';
 import '../../core/database/database.dart';
 import '../../core/providers.dart';
+import '../../core/settings/settings_controller.dart';
 import '../../core/storage/file_paths.dart';
+import '../../core/storage/storage_permission.dart';
 import '../bookmarks/book_bookmarks_screen.dart';
 import '../player/player_screen.dart';
 import 'book_cover.dart';
@@ -29,9 +33,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   LibrarySort _sort = LibrarySort.recentlyPlayed;
 
   @override
+  void initState() {
+    super.initState();
+    // Re-index the audiobooks folder on launch (no-op on web / without access).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _rescan());
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Re-scans the configured audiobooks folder into the library.
+  Future<void> _rescan() async {
+    final root = ref.read(settingsProvider).downloadRoot;
+    await ref.read(libraryScannerProvider).scan(root);
   }
 
   @override
@@ -58,6 +75,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               PopupMenuItem(value: LibrarySort.author, child: Text('Author')),
             ],
           ),
+          if (!kIsWeb)
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Rescan folder',
+              onPressed: _rescan,
+            ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Import audiobook',
@@ -112,8 +135,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
               ),
               Expanded(
-                child: ListView(
-                  children: [
+                child: RefreshIndicator(
+                  onRefresh: _rescan,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
                     if (query.isEmpty && continueList.isNotEmpty) ...[
                       const _SectionHeader('Continue listening'),
                       SizedBox(
@@ -145,7 +171,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         child: Center(child: Text('No matches')),
                       ),
                     const SizedBox(height: 16),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -188,10 +215,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
     );
     if (confirmed != true) return;
+    // Remove the on-disk book folder first so the next scan can't re-index it,
+    // then drop the row and its app-private cover cache. On the web the bytes
+    // are removed via the cascading foreign key; there's no folder to clean up.
+    if (!kIsWeb && book.m4bPath.isNotEmpty) {
+      final folder = Directory(p.dirname(book.m4bPath));
+      if (await folder.exists()) await folder.delete(recursive: true);
+    }
     await ref.read(databaseProvider).deleteBook(book.id);
-    // On the web the bytes are removed via the cascading foreign key; there is
-    // no on-disk folder to clean up.
     if (!kIsWeb) await FilePaths.deleteBookDir(book.id);
+  }
+
+  /// Ensures all-files access before writing to the audiobook folder. Returns
+  /// false (after prompting) if still not granted. Always true off-Android.
+  Future<bool> _ensureStorageAccess(ScaffoldMessengerState messenger) async {
+    if (await StoragePermission.isGranted()) return true;
+    await StoragePermission.request();
+    if (await StoragePermission.isGranted()) return true;
+    messenger.showSnackBar(const SnackBar(
+      content: Text('Grant "All files access" to store audiobooks, then retry.'),
+    ));
+    return false;
   }
 
   Future<void> _import() async {
@@ -229,6 +273,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       return;
     }
 
+    if (!await _ensureStorageAccess(messenger)) return;
     if (!mounted) return;
     unawaited(showDialog<void>(
       context: context,
@@ -236,11 +281,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     ));
     try {
-      await ref.read(localImporterProvider).importBook(
+      final root = ref.read(settingsProvider).downloadRoot;
+      await ref.read(localImporterProvider).importToFolder(
+            root: root,
             m4bSourcePath: m4b,
             cueSourcePath: cue,
             subtitleSourcePath: subtitle,
           );
+      await ref.read(libraryScannerProvider).scan(root);
       if (mounted) Navigator.of(context).pop();
       messenger.showSnackBar(const SnackBar(content: Text('Imported')));
     } catch (e) {

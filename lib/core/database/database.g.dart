@@ -515,6 +515,18 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _fingerprintMeta = const VerificationMeta(
+    'fingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> fingerprint = GeneratedColumn<String>(
+    'fingerprint',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -527,6 +539,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
     coverPath,
     completed,
     addedAt,
+    fingerprint,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -601,6 +614,15 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta),
       );
     }
+    if (data.containsKey('fingerprint')) {
+      context.handle(
+        _fingerprintMeta,
+        fingerprint.isAcceptableOrUnknown(
+          data['fingerprint']!,
+          _fingerprintMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -650,6 +672,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, Book> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}added_at'],
       )!,
+      fingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fingerprint'],
+      ),
     );
   }
 
@@ -667,13 +693,21 @@ class Book extends DataClass implements Insertable<Book> {
   final String title;
   final String? author;
 
-  /// Paths are RELATIVE to the app documents directory (see FilePaths).
+  /// For books stored on the filesystem these are ABSOLUTE paths (they're
+  /// refreshed on every launch by the library scan, so they never go stale).
+  /// For web books m4bPath is a placeholder and the bytes live in [BookFiles].
   final String m4bPath;
   final String? cuePath;
   final int durationMs;
   final String? coverPath;
   final bool completed;
   final DateTime addedAt;
+
+  /// Stable identity of a filesystem book: a hash of its audio (see
+  /// FileFingerprint). The library is re-indexed from disk each launch and
+  /// books are matched by this, so playback/bookmarks survive renames and
+  /// moves. Null for web books (which aren't scanned).
+  final String? fingerprint;
   const Book({
     required this.id,
     this.serverId,
@@ -685,6 +719,7 @@ class Book extends DataClass implements Insertable<Book> {
     this.coverPath,
     required this.completed,
     required this.addedAt,
+    this.fingerprint,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -707,6 +742,9 @@ class Book extends DataClass implements Insertable<Book> {
     }
     map['completed'] = Variable<bool>(completed);
     map['added_at'] = Variable<DateTime>(addedAt);
+    if (!nullToAbsent || fingerprint != null) {
+      map['fingerprint'] = Variable<String>(fingerprint);
+    }
     return map;
   }
 
@@ -730,6 +768,9 @@ class Book extends DataClass implements Insertable<Book> {
           : Value(coverPath),
       completed: Value(completed),
       addedAt: Value(addedAt),
+      fingerprint: fingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fingerprint),
     );
   }
 
@@ -749,6 +790,7 @@ class Book extends DataClass implements Insertable<Book> {
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       completed: serializer.fromJson<bool>(json['completed']),
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
+      fingerprint: serializer.fromJson<String?>(json['fingerprint']),
     );
   }
   @override
@@ -765,6 +807,7 @@ class Book extends DataClass implements Insertable<Book> {
       'coverPath': serializer.toJson<String?>(coverPath),
       'completed': serializer.toJson<bool>(completed),
       'addedAt': serializer.toJson<DateTime>(addedAt),
+      'fingerprint': serializer.toJson<String?>(fingerprint),
     };
   }
 
@@ -779,6 +822,7 @@ class Book extends DataClass implements Insertable<Book> {
     Value<String?> coverPath = const Value.absent(),
     bool? completed,
     DateTime? addedAt,
+    Value<String?> fingerprint = const Value.absent(),
   }) => Book(
     id: id ?? this.id,
     serverId: serverId.present ? serverId.value : this.serverId,
@@ -790,6 +834,7 @@ class Book extends DataClass implements Insertable<Book> {
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     completed: completed ?? this.completed,
     addedAt: addedAt ?? this.addedAt,
+    fingerprint: fingerprint.present ? fingerprint.value : this.fingerprint,
   );
   Book copyWithCompanion(BooksCompanion data) {
     return Book(
@@ -805,6 +850,9 @@ class Book extends DataClass implements Insertable<Book> {
       coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
       completed: data.completed.present ? data.completed.value : this.completed,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+      fingerprint: data.fingerprint.present
+          ? data.fingerprint.value
+          : this.fingerprint,
     );
   }
 
@@ -820,7 +868,8 @@ class Book extends DataClass implements Insertable<Book> {
           ..write('durationMs: $durationMs, ')
           ..write('coverPath: $coverPath, ')
           ..write('completed: $completed, ')
-          ..write('addedAt: $addedAt')
+          ..write('addedAt: $addedAt, ')
+          ..write('fingerprint: $fingerprint')
           ..write(')'))
         .toString();
   }
@@ -837,6 +886,7 @@ class Book extends DataClass implements Insertable<Book> {
     coverPath,
     completed,
     addedAt,
+    fingerprint,
   );
   @override
   bool operator ==(Object other) =>
@@ -851,7 +901,8 @@ class Book extends DataClass implements Insertable<Book> {
           other.durationMs == this.durationMs &&
           other.coverPath == this.coverPath &&
           other.completed == this.completed &&
-          other.addedAt == this.addedAt);
+          other.addedAt == this.addedAt &&
+          other.fingerprint == this.fingerprint);
 }
 
 class BooksCompanion extends UpdateCompanion<Book> {
@@ -865,6 +916,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
   final Value<String?> coverPath;
   final Value<bool> completed;
   final Value<DateTime> addedAt;
+  final Value<String?> fingerprint;
   const BooksCompanion({
     this.id = const Value.absent(),
     this.serverId = const Value.absent(),
@@ -876,6 +928,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.coverPath = const Value.absent(),
     this.completed = const Value.absent(),
     this.addedAt = const Value.absent(),
+    this.fingerprint = const Value.absent(),
   });
   BooksCompanion.insert({
     this.id = const Value.absent(),
@@ -888,6 +941,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     this.coverPath = const Value.absent(),
     this.completed = const Value.absent(),
     this.addedAt = const Value.absent(),
+    this.fingerprint = const Value.absent(),
   }) : title = Value(title),
        m4bPath = Value(m4bPath);
   static Insertable<Book> custom({
@@ -901,6 +955,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Expression<String>? coverPath,
     Expression<bool>? completed,
     Expression<DateTime>? addedAt,
+    Expression<String>? fingerprint,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -913,6 +968,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       if (coverPath != null) 'cover_path': coverPath,
       if (completed != null) 'completed': completed,
       if (addedAt != null) 'added_at': addedAt,
+      if (fingerprint != null) 'fingerprint': fingerprint,
     });
   }
 
@@ -927,6 +983,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
     Value<String?>? coverPath,
     Value<bool>? completed,
     Value<DateTime>? addedAt,
+    Value<String?>? fingerprint,
   }) {
     return BooksCompanion(
       id: id ?? this.id,
@@ -939,6 +996,7 @@ class BooksCompanion extends UpdateCompanion<Book> {
       coverPath: coverPath ?? this.coverPath,
       completed: completed ?? this.completed,
       addedAt: addedAt ?? this.addedAt,
+      fingerprint: fingerprint ?? this.fingerprint,
     );
   }
 
@@ -975,6 +1033,9 @@ class BooksCompanion extends UpdateCompanion<Book> {
     if (addedAt.present) {
       map['added_at'] = Variable<DateTime>(addedAt.value);
     }
+    if (fingerprint.present) {
+      map['fingerprint'] = Variable<String>(fingerprint.value);
+    }
     return map;
   }
 
@@ -990,7 +1051,8 @@ class BooksCompanion extends UpdateCompanion<Book> {
           ..write('durationMs: $durationMs, ')
           ..write('coverPath: $coverPath, ')
           ..write('completed: $completed, ')
-          ..write('addedAt: $addedAt')
+          ..write('addedAt: $addedAt, ')
+          ..write('fingerprint: $fingerprint')
           ..write(')'))
         .toString();
   }
@@ -3139,6 +3201,7 @@ typedef $$BooksTableCreateCompanionBuilder =
       Value<String?> coverPath,
       Value<bool> completed,
       Value<DateTime> addedAt,
+      Value<String?> fingerprint,
     });
 typedef $$BooksTableUpdateCompanionBuilder =
     BooksCompanion Function({
@@ -3152,6 +3215,7 @@ typedef $$BooksTableUpdateCompanionBuilder =
       Value<String?> coverPath,
       Value<bool> completed,
       Value<DateTime> addedAt,
+      Value<String?> fingerprint,
     });
 
 final class $$BooksTableReferences
@@ -3305,6 +3369,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<DateTime> get addedAt => $composableBuilder(
     column: $table.addedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3492,6 +3561,11 @@ class $$BooksTableOrderingComposer
     column: $table.addedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BooksTableAnnotationComposer
@@ -3534,6 +3608,11 @@ class $$BooksTableAnnotationComposer
 
   GeneratedColumn<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => column,
+  );
 
   Expression<T> chaptersRefs<T extends Object>(
     Expression<T> Function($$ChaptersTableAnnotationComposer a) f,
@@ -3705,6 +3784,7 @@ class $$BooksTableTableManager
                 Value<String?> coverPath = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
+                Value<String?> fingerprint = const Value.absent(),
               }) => BooksCompanion(
                 id: id,
                 serverId: serverId,
@@ -3716,6 +3796,7 @@ class $$BooksTableTableManager
                 coverPath: coverPath,
                 completed: completed,
                 addedAt: addedAt,
+                fingerprint: fingerprint,
               ),
           createCompanionCallback:
               ({
@@ -3729,6 +3810,7 @@ class $$BooksTableTableManager
                 Value<String?> coverPath = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
+                Value<String?> fingerprint = const Value.absent(),
               }) => BooksCompanion.insert(
                 id: id,
                 serverId: serverId,
@@ -3740,6 +3822,7 @@ class $$BooksTableTableManager
                 coverPath: coverPath,
                 completed: completed,
                 addedAt: addedAt,
+                fingerprint: fingerprint,
               ),
           withReferenceMapper: (p0) => p0
               .map(

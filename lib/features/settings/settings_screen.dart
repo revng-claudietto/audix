@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../core/settings/settings_controller.dart';
+import '../../core/storage/storage_locations.dart';
+import '../../core/storage/storage_permission.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -47,6 +50,7 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsProvider.notifier).setSmartResume(v),
           ),
           const Divider(),
+          if (!kIsWeb) const _StorageSection(),
           const _Header('Library'),
           ListTile(
             leading: const Icon(Icons.library_books),
@@ -110,6 +114,118 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// Storage settings: where books live on disk, all-files access, and a manual
+/// re-index of that folder. Android/desktop only (hidden on web).
+class _StorageSection extends ConsumerStatefulWidget {
+  const _StorageSection();
+
+  @override
+  ConsumerState<_StorageSection> createState() => _StorageSectionState();
+}
+
+class _StorageSectionState extends ConsumerState<_StorageSection> {
+  bool _granted = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPermission();
+  }
+
+  Future<void> _refreshPermission() async {
+    final granted = await StoragePermission.isGranted();
+    if (mounted) setState(() => _granted = granted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final root = ref.watch(settingsProvider).downloadRoot;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Header('Storage'),
+        ListTile(
+          leading: const Icon(Icons.folder_outlined),
+          title: const Text('Download folder'),
+          subtitle: Text(root),
+          trailing: const Icon(Icons.edit_outlined),
+          onTap: _editFolder,
+        ),
+        if (_granted)
+          const ListTile(
+            leading: Icon(Icons.check_circle_outline),
+            title: Text('Storage access granted'),
+          )
+        else
+          ListTile(
+            leading: Icon(Icons.warning_amber, color: scheme.error),
+            title: const Text('All files access needed'),
+            subtitle: const Text('Required to read and write the folder above'),
+            trailing: FilledButton(
+              onPressed: () async {
+                await StoragePermission.request();
+                await _refreshPermission();
+              },
+              child: const Text('Grant'),
+            ),
+          ),
+        ListTile(
+          leading: const Icon(Icons.refresh),
+          title: const Text('Rescan library'),
+          subtitle: const Text('Re-index the download folder'),
+          onTap: _rescan,
+        ),
+        const Divider(),
+      ],
+    );
+  }
+
+  Future<void> _editFolder() async {
+    final controller =
+        TextEditingController(text: ref.read(settingsProvider).downloadRoot);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Download folder'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration:
+              const InputDecoration(hintText: StorageLocations.defaultRoot),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, StorageLocations.defaultRoot),
+            child: const Text('Default'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || result.isEmpty) return;
+    await ref.read(settingsProvider.notifier).setDownloadRoot(result);
+    await _rescan();
+  }
+
+  Future<void> _rescan() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final root = ref.read(settingsProvider).downloadRoot;
+    await ref.read(libraryScannerProvider).scan(root);
+    if (!mounted) return;
+    messenger.showSnackBar(const SnackBar(content: Text('Library rescanned')));
   }
 }
 

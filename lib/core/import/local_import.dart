@@ -5,12 +5,13 @@ import 'package:path/path.dart' as p;
 
 import '../database/database.dart';
 import '../library/book_finalizer.dart';
-import '../storage/file_paths.dart';
+import '../storage/storage_locations.dart';
 import '../subtitle/subtitle_service.dart';
 
-/// Imports an audiobook (an `.m4b` plus optional `.cue`) from device storage:
-/// copies the files into the app's per-book folder, then finalizes metadata
-/// and chapters via [BookFinalizer].
+/// Imports an audiobook (an `.m4b` plus optional `.cue`/subtitle) from device
+/// storage. On mobile the files are copied into the audiobook folder and the
+/// library scan indexes them; on the web (no filesystem) the bytes are stored
+/// in the database.
 class LocalImporter {
   LocalImporter(this.db, this.finalizer, this.subtitles);
 
@@ -18,33 +19,27 @@ class LocalImporter {
   final BookFinalizer finalizer;
   final SubtitleService subtitles;
 
-  Future<int> importBook({
+  /// Copies an imported book's files into `<root>/<Title>/` and returns that
+  /// folder. The caller re-scans afterwards so the scanner creates the book.
+  Future<String> importToFolder({
+    required String root,
     required String m4bSourcePath,
     String? cueSourcePath,
     String? subtitleSourcePath,
   }) async {
-    final fallbackTitle = p.basenameWithoutExtension(m4bSourcePath);
+    final title = p.basenameWithoutExtension(m4bSourcePath);
+    final dir = Directory(StorageLocations(root).bookDir(title));
+    await dir.create(recursive: true);
 
-    // Insert first to obtain the id used for the storage folder name.
-    final id = await db.insertBook(
-      BooksCompanion.insert(title: fallbackTitle, m4bPath: ''),
-    );
-
-    final dir = await FilePaths.ensureBookDir(id);
-    await File(m4bSourcePath).copy(p.join(dir.path, 'audio.m4b'));
+    await File(m4bSourcePath).copy(p.join(dir.path, StorageLocations.audioName));
     if (cueSourcePath != null) {
-      await File(cueSourcePath).copy(p.join(dir.path, 'index.cue'));
+      await File(cueSourcePath).copy(p.join(dir.path, StorageLocations.cueName));
     }
-
-    await finalizer.finalize(
-      id,
-      fallbackTitle: fallbackTitle,
-      hasCue: cueSourcePath != null,
-    );
     if (subtitleSourcePath != null) {
-      await subtitles.attach(id, await File(subtitleSourcePath).readAsBytes());
+      await File(subtitleSourcePath)
+          .copy(p.join(dir.path, StorageLocations.subtitleName));
     }
-    return id;
+    return dir.path;
   }
 
   /// Imports an audiobook from in-memory bytes (used on the web, where files are

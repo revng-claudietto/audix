@@ -31,13 +31,21 @@ class Books extends Table {
   TextColumn get title => text()();
   TextColumn get author => text().nullable()();
 
-  /// Paths are RELATIVE to the app documents directory (see FilePaths).
+  /// For books stored on the filesystem these are ABSOLUTE paths (they're
+  /// refreshed on every launch by the library scan, so they never go stale).
+  /// For web books m4bPath is a placeholder and the bytes live in [BookFiles].
   TextColumn get m4bPath => text()();
   TextColumn get cuePath => text().nullable()();
   IntColumn get durationMs => integer().withDefault(const Constant(0))();
   TextColumn get coverPath => text().nullable()();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
   DateTimeColumn get addedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Stable identity of a filesystem book: a hash of its audio (see
+  /// FileFingerprint). The library is re-indexed from disk each launch and
+  /// books are matched by this, so playback/bookmarks survive renames and
+  /// moves. Null for web books (which aren't scanned).
+  TextColumn get fingerprint => text().nullable().unique()();
 }
 
 @DataClassName('Chapter')
@@ -123,7 +131,7 @@ class AppDatabase extends _$AppDatabase {
             ));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -132,6 +140,7 @@ class AppDatabase extends _$AppDatabase {
           if (from < 3) await m.addColumn(bookmarks, bookmarks.kind);
           if (from < 4) await m.createTable(bookFiles);
           if (from < 5) await m.createTable(subtitleCues);
+          if (from < 6) await m.addColumn(books, books.fingerprint);
         },
         beforeOpen: (details) async {
           // Required so KeyAction.cascade foreign keys are enforced.
@@ -175,6 +184,29 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteBook(int id) =>
       (delete(books)..where((b) => b.id.equals(id))).go();
+
+  Future<Book?> bookByFingerprint(String fingerprint) =>
+      (select(books)..where((b) => b.fingerprint.equals(fingerprint)))
+          .getSingleOrNull();
+
+  /// All books tracked on the filesystem (i.e. that carry a fingerprint), so a
+  /// scan can reconcile them against what's currently on disk.
+  Future<List<Book>> filesystemBooks() =>
+      (select(books)..where((b) => b.fingerprint.isNotNull())).get();
+
+  /// Light update when a known book's folder was renamed or moved: refresh its
+  /// title and file locations without re-probing duration or the cover.
+  Future<void> updateBookLocation(
+    int id, {
+    required String title,
+    required String m4bPath,
+    String? cuePath,
+  }) =>
+      (update(books)..where((b) => b.id.equals(id))).write(BooksCompanion(
+        title: Value(title),
+        m4bPath: Value(m4bPath),
+        cuePath: Value(cuePath),
+      ));
 
   // ----------------------------------------------------------- Book files (web)
   Future<void> saveBookFile(int bookId, Uint8List m4b, Uint8List? cue) =>
@@ -244,6 +276,17 @@ class AppDatabase extends _$AppDatabase {
           ..where(subtitleCues.bookId.equals(bookId)))
         .watchSingle()
         .map((row) => row.read(count) ?? 0);
+  }
+
+  /// One-shot count of a book's transcript lines (for the library scan to
+  /// decide whether a `.vtt/.srt` still needs attaching).
+  Future<int> subtitleCount(int bookId) async {
+    final count = subtitleCues.id.count();
+    final row = await (selectOnly(subtitleCues)
+          ..addColumns([count])
+          ..where(subtitleCues.bookId.equals(bookId)))
+        .getSingle();
+    return row.read(count) ?? 0;
   }
 
   /// Replaces a book's transcript with [rows] (removing any existing lines).

@@ -11,35 +11,36 @@ import '../storage/blob_url_stub.dart'
 import '../storage/file_paths.dart';
 import 'cover_extractor.dart';
 
-/// Completes a book after its files are in place (imported or downloaded):
-/// probes the duration, extracts an embedded cover, parses the cue (or falls
-/// back to a single chapter), and writes metadata + chapters to the database.
+/// Completes a book after its files are in place (imported, downloaded, or
+/// discovered by the library scan): probes the duration, extracts an embedded
+/// cover, parses the cue (or falls back to a single chapter), and writes
+/// metadata + chapters to the database.
 ///
-/// Expects the files at `audiobooks/<id>/audio.m4b` (+ optional `index.cue`).
+/// Filesystem books keep their audio/cue as ABSOLUTE paths (the scan refreshes
+/// them each launch); covers are cached app-privately under `audiobooks/<id>/`.
 class BookFinalizer {
   BookFinalizer(this.db);
 
   final AppDatabase db;
 
-  Future<void> finalize(
+  /// Finalizes a filesystem book whose files already sit in its folder.
+  /// [m4bAbsolute]/[cueAbsolute] are absolute paths; [title] is the folder name
+  /// (what the user sees on disk), so it wins over any cue-embedded title.
+  Future<void> finalizeFolderBook(
     int id, {
-    required String fallbackTitle,
-    String? author,
-    required bool hasCue,
+    required String title,
+    required String m4bAbsolute,
+    String? cueAbsolute,
   }) async {
-    final m4bRelative = FilePaths.relativePath(id, 'audio.m4b');
-    final m4bAbsolute = await FilePaths.absolutePath(m4bRelative);
     final durationMs = await probeDurationMs(m4bAbsolute);
 
     CueSheet? sheet;
-    String? cueRelative;
-    if (hasCue) {
-      cueRelative = FilePaths.relativePath(id, 'index.cue');
-      final cueFile = File(await FilePaths.absolutePath(cueRelative));
+    if (cueAbsolute != null) {
+      final cueFile = File(cueAbsolute);
       if (await cueFile.exists()) {
         sheet = CueParser.parse(await cueFile.readAsString());
       } else {
-        cueRelative = null;
+        cueAbsolute = null;
       }
     }
 
@@ -47,15 +48,15 @@ class BookFinalizer {
 
     final chapters = sheet != null
         ? chaptersFromCue(sheet, durationMs: durationMs)
-        : singleChapter(durationMs: durationMs, title: fallbackTitle);
+        : singleChapter(durationMs: durationMs, title: title);
 
     await db.finalizeImportedBook(
       id,
-      m4bPath: m4bRelative,
-      cuePath: cueRelative,
+      m4bPath: m4bAbsolute,
+      cuePath: cueAbsolute,
       coverPath: coverRelative,
-      author: author ?? sheet?.performer,
-      title: sheet?.title ?? fallbackTitle,
+      author: sheet?.performer,
+      title: title,
       durationMs: durationMs,
     );
 
@@ -150,6 +151,9 @@ class BookFinalizer {
   Future<String?> _extractCover(int id, String m4bAbsolute) async {
     final bytes = await CoverExtractor.extract(m4bAbsolute);
     if (bytes == null || bytes.isEmpty) return null;
+    // Covers are cached app-privately (not in the user's audiobook folder), so
+    // ensure that per-book directory exists before writing into it.
+    await FilePaths.ensureBookDir(id);
     final relative = FilePaths.relativePath(id, 'cover.jpg');
     await File(await FilePaths.absolutePath(relative)).writeAsBytes(bytes);
     return relative;
