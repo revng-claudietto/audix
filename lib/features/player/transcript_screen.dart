@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/audio/audio_providers.dart';
@@ -30,15 +29,21 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
   /// Attached to the active line so we can centre it via [Scrollable.ensureVisible].
   final _activeKey = GlobalKey();
 
-  /// Rough per-line height, used only to jump near a far-off line before the
-  /// exact centring pass (lines are lazily built, so a target off-screen has no
-  /// context to scroll to yet).
-  static const _estimatedExtent = 64.0;
-
   bool _following = true;
   bool _searching = false;
   String _query = '';
   int _activeIndex = -2; // sentinel so the first real value triggers a scroll.
+
+  /// Range of line indices the [ListView] built in the latest frame. Lets the
+  /// auto-follow tell whether the active line exists yet and, if not, gauge the
+  /// real on-screen line density to jump toward it.
+  int _firstBuilt = 0;
+  int _lastBuilt = -1;
+
+  /// Bumped whenever a new auto-follow starts, so a stale in-flight follow (for
+  /// an earlier line) bails out instead of fighting the current one.
+  int _followGen = 0;
+  int _followSteps = 0;
 
   @override
   void dispose() {
@@ -66,39 +71,57 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
     return ans;
   }
 
-  /// Centres line [index], jumping near it first if it isn't built yet.
-  void _scrollTo(int index, {required bool animate}) {
+  /// Centres the active line, auto-scrolling to it even when it's far off-screen.
+  ///
+  /// If the line is already built we just centre it. Otherwise we can't (a
+  /// lazily-built line off-screen has no context to scroll to), so we jump
+  /// toward it using the *measured* height of the lines currently on screen and
+  /// retry next frame. Re-measuring each frame makes it converge in a couple of
+  /// frames regardless of how tall the lines are — unlike a fixed per-line
+  /// estimate, which drifts thousands of pixels off over a long transcript.
+  void _scrollToActive({required bool animate}) {
+    final gen = ++_followGen;
+    _followSteps = 0;
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _followStep(gen, animate));
+  }
+
+  void _followStep(int gen, bool animate) {
+    if (gen != _followGen || !mounted || !_following || _searching) return;
+    if (!_scrollController.hasClients) return;
+    final index = _activeIndex;
     if (index < 0) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final ctx = _activeKey.currentContext;
-      if (ctx != null) {
-        Scrollable.ensureVisible(
-          ctx,
-          alignment: 0.5,
-          duration: animate ? const Duration(milliseconds: 320) : Duration.zero,
-          curve: Curves.easeInOut,
-        );
-        return;
-      }
-      // Far off-screen: jump to an estimate so it enters the build window, then
-      // centre precisely on the next frame.
-      final target = (index * _estimatedExtent)
-          .clamp(0.0, _scrollController.position.maxScrollExtent);
-      _scrollController.jumpTo(target);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final c = _activeKey.currentContext;
-        if (c != null) {
-          Scrollable.ensureVisible(c, alignment: 0.5, duration: Duration.zero);
-        }
-      });
-    });
+
+    final ctx = _activeKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5,
+        duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+
+    // Active line not laid out yet: jump toward it, then try again next frame.
+    // Capped so a pathological layout can't loop forever.
+    if (_followSteps++ > 10) return;
+    final pos = _scrollController.position;
+    final built = _lastBuilt - _firstBuilt + 1;
+    if (built > 0) {
+      final pxPerLine = pos.viewportDimension / built;
+      final centreLine = (_firstBuilt + _lastBuilt) / 2.0;
+      final target = (pos.pixels + (index - centreLine) * pxPerLine)
+          .clamp(0.0, pos.maxScrollExtent);
+      pos.jumpTo(target);
+    }
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _followStep(gen, animate));
   }
 
   void _resumeFollowing() {
     setState(() => _following = true);
-    _scrollTo(_activeIndex, animate: true);
+    _scrollToActive(animate: true);
   }
 
   void _openSearch() => setState(() => _searching = true);
@@ -117,7 +140,7 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
     controller.play();
     _activeIndex = index;
     setState(() => _following = true);
-    _scrollTo(index, animate: true);
+    _scrollToActive(animate: true);
   }
 
   /// Tapping a search result leaves search and returns to the lyrics view
@@ -139,10 +162,15 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
     final controller = ref.read(playerControllerProvider);
     final scheme = Theme.of(context).colorScheme;
 
+    // Reset the built-line range; the ListView repopulates it during layout,
+    // and the post-frame auto-follow reads it back.
+    _firstBuilt = 1 << 30;
+    _lastBuilt = -1;
+
     final active = _activeFor(cues, posMs);
     if (active != _activeIndex) {
       _activeIndex = active;
-      if (_following && !_searching) _scrollTo(active, animate: true);
+      if (_following && !_searching) _scrollToActive(animate: true);
     }
 
     final query = _query.trim();
@@ -213,11 +241,11 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
   }
 
   Widget _buildTranscript(List<SubtitleCueRow> cues) {
-    return NotificationListener<UserScrollNotification>(
+    return NotificationListener<ScrollStartNotification>(
       onNotification: (n) {
-        // A user drag/fling pauses auto-follow (programmatic scrolls do not
-        // emit UserScrollNotifications).
-        if (n.direction != ScrollDirection.idle && _following) {
+        // A finger drag pauses auto-follow; our own programmatic scrolls carry
+        // no drag details, so they don't trip this.
+        if (n.dragDetails != null && _following) {
           setState(() => _following = false);
         }
         return false;
@@ -227,6 +255,8 @@ class _TranscriptScreenState extends ConsumerState<TranscriptScreen> {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
         itemCount: cues.length,
         itemBuilder: (context, i) {
+          if (i < _firstBuilt) _firstBuilt = i;
+          if (i > _lastBuilt) _lastBuilt = i;
           final isActive = i == _activeIndex;
           return _CueLine(
             key: isActive ? _activeKey : null,
