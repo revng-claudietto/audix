@@ -33,6 +33,22 @@ jobs:
             "$AGENT_TOOLSDIRECTORY" || true
           df -h /
 
+      # `flutter build apk` (the Dart AOT gen_snapshot plus Gradle/Kotlin) peaks
+      # above the hosted runner's RAM; when it does the kernel OOM-kills the
+      # build and the whole job dies with a bare "the runner has received a
+      # shutdown signal" and no build error. A large swap file on the roomy /mnt
+      # disk absorbs that peak. `free -h` is logged so a future stall is
+      # diagnosable from the run itself.
+      - name: Add swap headroom
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile
+          sudo fallocate -l 13G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+
       - name: Install Nix
         run: |
           sh <(curl -L https://nixos.org/nix/install) --no-daemon
@@ -40,7 +56,18 @@ jobs:
           echo "NIX_CONFIG=experimental-features = nix-command flakes" >> "$GITHUB_ENV"
 
       - name: Build the arm64-v8a APK
-        run: nix build .#default -L --print-build-logs
+        run: |
+          # Log memory/swap/disk every 15s. If the runner is still killed with
+          # no build error, the last lines reveal which resource hit the wall.
+          ( while :; do
+              printf '[resources] %s  ' "$(date +%T)"
+              free -m | awk '/Mem:/{printf "mem %d/%d MB  ",$3,$2} /Swap:/{printf "swap %d/%d MB  ",$3,$2}'
+              df -m --output=avail / | tail -1 | awk '{printf "root free %d MB\n",$1}'
+              sleep 15
+            done ) &
+          monitor=$!
+          nix build .#default -L --print-build-logs
+          kill "$monitor" 2>/dev/null || true
 
       # The Nix build signs with the throwaway debug key (a pure sandbox can't
       # see secrets). Re-sign the finished APK here with the real release key:
